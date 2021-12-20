@@ -1,0 +1,5870 @@
+
+;****************** SPECIAL FLAGS AND RAM USAGE ******************
+;COMMON DATA RAM IS USED AS FOLLOWS IN THIS GAME (LEE MAJORS GAME)
+;
+;0,1 = PLACE TO SAVE REGISTER DURING AN INT.   BE SURE TO LOCK OTHERS OUT
+;	WITH AN INSTRUCTIONS COMMAND.
+;2   = LEVEL WE ARE ON IN THE PYRAMID
+;3 = DELAY TIME ON ROCKETS
+;4 = COUNT OF TORCHES
+;5 = COUNT OF BOOMERRANGS
+;6 = COUNT OF SHIELDS
+;7 = COUNT SUCTION CUPS
+;8 = COUNT KEYS
+;9 = COUNT BRASS KNUCKLES
+;10= STATUS SELECTOR
+;11= MAP ICON
+;12= COUNT DOWN OF TORCH ENTITY
+;13-14 = UNUSED
+;15=MUSIC MAKER
+;16 = AMOUNT OF DYNAMITE THE HERO HAS.
+;17 = USED TO MAKE A CHEAT MODE PASSWORD.
+;18 = USED TO DECIDE WHICH DEMO SCREEN TO SHOW
+;19 = TRUE IF THIS WORLD HAS CLIFFS THAT FALL TO AN ENTITIES DEATH.
+;     PRECIPICE JUMPERS CHECK THIS AND WON'T MAKE DARING JUMPS.
+;20 = SET AT WORLD START TO -1 SIGNAL THAT WE SHOULDN'T INTERRUPT THE
+;	THEME SONG YET.  FIRST TIME THE MUSIC GETS TO PLAY THROUGH
+;	WE WILL RESET IT SO ENEMY THEMES CAN INTERRUPT.  AN INTERMEDIATE
+;	STATE OF 1 IS USED TO SIGNAL WE DID INDEED GET TO START IT ONCE.
+;21 = HERO'S HEALTH FROM PREVIOUS WORLD.  USED TO CONTINUE WITH SAME HEALTH
+;     IN THE NEXT WORLD.
+;22 = HEALTH OF SPECIAL ENTITY IN A GIVEN WORLD SUCH AS A SORCERER
+;23 = WORLD TO CONTINUE IN.  -1 IF NEW GAME.
+;24 = PASSED TO THE STATUS MAP TO SIGNAL THE WORLD TO SHOW WITH X.
+;25 = DELAY BEFORE JUMPING ACROSS A PRECIPICE				     
+;26 = DELAY BEFORE JUMPING DOWN FROM A PERCH
+;27 = FREEZE TIME WHEN AN ENTITY IS THROWN
+;28 =  FREEZE TIME WHEN AN ENTITY IS HURT. 
+;29 = DELAY BEFORE ATTACK IF ENTITY MAD OR DYING
+;30 = DELAY BEFORE ATTACK IF ENTITY IS NOT MAD OR DYING
+;31 = SUPER SOLID CHAR VALUE (VALUE TO USE AT START OF JUMP TO TURN SOLID OFF
+;
+;REMEMBER THAT THE DELAY TIMES ABOVE ARE ADDED TO THE CODE PROCESSING OVERHEAD
+;FOR THE MODE IN QUESTION.  IN SOME CASES ITS DESIRABLE TO SET THESE TO 0
+;WHICH IS THE MINIMUM.
+;
+;*************************HERO CODE *******************
+; FOR THE HERO THE BEHAVIOR BITS ARE USED AS FOLLOWS:
+; OPTION1 MEANS YOU ARE ON A LADDER
+; FAST MEANS YOU ARE USING THE SUCTION CUPS
+; WEAK IS USED FOR SUCTION CUP MODE
+; STATE RAM IS USED TO SAVE AND RESTORE THE HERO'S REGISTER
+
+HEROINFO:
+	.word    	HERO3		;WAKEUP
+	.word  	HWAKEUP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	HHURTX		;HERO HURT BY ATTACK
+	.word  	HHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	HERO1A			;FALLING
+	.word  	HFALL
+	.byte 	$00,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	HCOMMAND
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;JUMPING
+	.word  	HJUMP
+	.byte 	$00,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1       	;ATTACKING.  NO ANIMATION, IT SELECTS WHICH.
+	.word  	HATTACK
+	.byte 	$40,-1
+	.byte 	$56,$11   
+	.byte 	$11,$01
+	.word  	-1		;DUCKING.  WE DON'T HAVE ONE, BUT USE IT FOR
+	.word  	HSELECT		;SELECT.
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	HERO2		;STANDING
+	.word  	HSTAND
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	HRUN		;WALKING
+	.word  	HWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+
+PPUNCH:	.word  	HKICK		;POWER PUNCH
+	.word  	HMIDDLE
+	.byte 	$40,1
+	.byte 	$56,$24	;DOES 7 DAMAGE AND THROWS ENEMY BACK+PNTS
+	.byte 	$11,$01
+
+WPUNCH:	.word  	HKICK       	;WEAK PUNCH
+	.word  	HMIDDLE
+	.byte 	$40,1
+	.byte 	$56,$11   
+	.byte 	$11,$01
+
+HTHROW:	.word  	HTHROWS		;DUCKING.  WE DON'T HAVE ONE, BUT USE IT FOR
+	.word  	-1		;SELECT.
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+
+
+HDIE:	.word  	HDUCKSX		;LOST 1 HERO
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+ONLADDER:
+	.word  	HCLIMB		
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+SUCTHORZ:
+	.word  	HCLIMB
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	
+
+HBALL:	.word  	HDUCKSX		;HERO HURT REAL BAD
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+SHIELD:	.word  	HSHIELD		;HERO'S SHIELD
+	.word  	SHCOUNT
+	.byte 	0,0
+	.byte 	$40,$15
+	.byte 	$42,$00
+SHCOUNT:
+	.byte 	TARGET
+	.word  	ALL^HERO0    
+	.byte 	SOLIDSTATE,OFF
+	.byte 	LINK,0,0,ID
+	.word  	HEROID
+	.byte 	SETCOUNTER,255
+SHC10: 	.byte 	REARM
+	.byte    	ABOVECOUNT
+	.word  	SHC10
+	.byte 	1
+	.byte 	DIE,0	
+
+HWAKEUP:			;HERO WAKEUP MOVEMENT LIST
+	.byte 	INSTRUCTIONS,$8F
+	.byte 	ACTIVE
+	.word  	SAFEDIE
+	.byte 	ID
+	.word  	HEROID		;DON'T MAKE A PHANTOM HERO (FOR WARP ZONE)
+MK4:	.byte 	SOUNDBUSY
+	.word  	HWA10
+	.byte 	ON,ON,DONTCARE,ON	
+
+MK5:  	.byte 	RANDOM			;RANDOMLY PICK WHICH THEME TO PLAY
+	.word  	MK20
+	.byte 	127	
+	.byte 	SOUND
+	.word  	TEMPTHEME,TEMPMELODY,0,0     	;THEN MAIN THEME
+	.byte 	SKIP
+	.word  	HWA10	
+MK20:
+	.byte 	SOUND
+	.word  	DTHEME0,DTHEME1,0,0
+
+HWA10:	.byte 	JOYSTICK,0
+	.byte 	ZEROJOYX,ZEROJOYY
+	.byte 	IDENTIFY
+	.word  	HERO0
+	.byte 	LOAD,21
+	.byte 	SETHEALTH,REGISTER	;GET THE HEALTH FOR THE HERO
+	.byte 	SETSELECT,EDUCK		;SET SELECT TO DUCK MODE
+	.byte 	IFBEHAVIOR
+	.word  	SUC5
+	.byte 	FAST			;SUCTION CUPS ARE ON.  GO USE THEM
+NEWTIME:
+	.byte 	CREATE,WORLDGUYID,255,192,0	;LAUNCH THE WORLD CONFIGURER
+	.byte 	ACTIVATE,EWALK
+
+;WHILE WALKING, PRESSING THE ATTACK BUTTON (B) WILL SPEED UP THE
+;RUN IF NO ENEMY IN RANGE.  THEN IF B IS RELEASED, WE WILL SLOW BACK
+;DOWN.  BUT IF WHILE B IS DOWN AN ENEMY COMES INTO SIGHT, WE KNEE ATTACK
+;IT.
+
+HWALK:				;HERO WALKING MOVEMENT LIST
+	.byte 	INSTRUCTIONS,10
+	.byte 	TARGET
+	.word  	BULLET1|BULLET0|DEADLY|KILLER|HARMLESS|BENIGN|HELPER|ENEMY
+	.byte 	FACE,JOYDIR|DOWN
+	.byte 	RESETBEHAVIOR,OPTION1|FAST
+	.byte 	ENTITYBITS,$9A		;FIX HIS CONTROL BITS
+	.byte 	GRAVITY,-1
+	.byte 	FRICTION,DEF_XFRICT,DEF_YFRICT	;RESTORE FRICTION
+	.byte 	MOMLIMIT,60,DEF_YLIM	;ASSUME FAST SPEED RESTORED
+	.byte 	BUTTON
+	.word  	HW5
+	.byte 	B_BUTTON	;IF B PRESSED, DON'T RESET SPEED
+	.byte 	MOMLIMIT,36,-1	;PUT BACK NORMAL RUNNING SPEED IF NO B
+
+HW5:	.byte 	INSTRUCTIONS,6
+	.byte 	WHOSLINKED
+	.byte 	EQUAL	      	;LOCK UP IF WEIRD ENTITY STUCK TO YOU
+	.word  	STUCKHERO
+	.word  	51
+	.byte 	WHOSLINKED
+	.byte 	EQUAL	     	;CHECK IF SHIELD ON 	
+	.word  	SHIELDON
+	.word  	59
+	.byte 	ENABLE,ALL^DUCKING	;ENABLE ALL BUT DUCKING
+	.byte 	SKIP
+	.word  	HW6
+SHIELDON:
+	.byte 	DISABLE,HURTING	  ;DISABLE HURTING IF SHIELD LINKED TO YOU	
+HW6:  	.byte 	ADDJOYX
+	.byte 	INSTRUCTIONS,4
+	.byte 	SPEED
+	.word  	HW10
+	.byte 	7,-1		;IF SPEED BELOW MOVING, DON'T RESET COUNTER
+	.byte 	SETCOUNTER,6	;RESET COUNTER TO CHECK WHEN STANDING STILL
+	.byte 	BUTTON
+	.word  	HW30
+	.byte 	B_BUTTON	;IF B PRESSED, DON'T RESET SPEED
+	.byte 	MOMLIMIT,36,-1	;PUT BACK NORMAL RUNNING SPEED IF NO B
+HW10:	.byte 	COUNT
+	.word  	HW20
+	.byte 	1		;GO TO STAND MODE IF STILL FOR 1/2 SECONDS
+
+ 	.byte 	ADDJOYX
+	.byte 	YVISUAL
+	.word  	HW5
+	.byte 	200		;IF OUR FEET GO BELOW 200, WE ARE DEAD
+	.byte 	SKIP
+	.word  	HH20		
+
+;SHARED ENTRY POINT TO GO INTO STAND MODE
+
+HW20:	.byte 	ACTIVATE,ESTAND
+
+HW30: 	.byte 	MOMLIMIT,60,-1		;IF B DOWN, INCREASE SPEED
+	.byte 	SKIP		;(IDEAL IS 64 TO 48)
+	.word  	HW5	
+
+;THE GHOST HAS GRABBED THE HERO.  WAIT TILL IT LETS GO.
+
+STUCKHERO:
+	.byte 	DISABLE,ALL
+	.byte 	ENABLE,HURTING
+	.byte 	ZEROJOYX,ZEROJOYY	;DON'T LET KEYBOARD STUFF BUILD UP
+	.byte 	WHOSLINKED
+	.byte 	NOTEQUAL       	;LOCK UP IF WEIRD ENTITY STUCK TO YOU
+	.word  	UNSTUCK
+	.word  	51
+	.byte 	YVISUAL
+	.word  	STUCKHERO
+	.byte 	200
+	.byte 	SKIP
+ 	.word  	HH20
+
+UNSTUCK:
+	.byte 	ACTIVATE,EWALK
+
+HHURT:					;HERO HURT MOVEMENT LIST
+	.byte 	INSTRUCTIONS,7
+	.byte 	ATTACKER
+	.word  	GRABBED
+	.byte 	47		
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+	.byte 	SOLIDSTATE,SAFE		;CATCH GETTING HURT IN A JUMP
+	.byte 	GRAVITY,-1
+	.byte 	FETCHREG,DAMAGE		;SEE HOW MUCH DAMAGE
+	.byte 	ATTACK
+	.word  	DYNBLAST
+	.byte 	4			;DYNAMITE ATTACK?
+	.byte 	DAMAGE			;APPLY HEALTH DAMAGE
+
+	.byte 	INSTRUCTIONS,3
+	.byte 	LOWNOISE
+	.word  	BUMPSND
+	.byte 	ATTACK		;SEE IF THROWBACK ATTACK (0)
+	.word  	HH10
+	.byte 	1		;IF SO, ALWAYS GO THROW HIM BACK.
+
+	.byte 	INSTRUCTIONS,6
+	.byte 	FETCHREG,HEALTH		;GET OUR HEALTH LEVEL
+	.byte 	ANDREG,3,0		;GET LOW 2 BITS
+	.byte 	EQUAL
+	.word  	HH10
+	.word  	0			;IF LOW 2 BITS ZERO, THROW HIM BACK
+	.byte 	THROWBACK,24,0		;OTHERWISE, WE ALWAYS SKID A BIT
+     	.byte 	DELAY,6
+	.byte 	CREATE,STATGUYID,255,192,0 ;LAUNCH THE STATUS BAR UPDATER
+	.byte 	ACTIVATE,EWALK
+GRABBED:.byte 	LINK,0,0,ID    	;LINK TO GRABBY THING
+	.word  	47
+GRAB10:	.byte 	ACTIVE 		;CHECK IF STILL GRABBED
+	.word  	GRAB10
+	.byte 	ID
+	.word  	47
+	.byte 	SETMOM,0,0
+	.byte 	UNLINK
+	.byte 	SEQUENCE
+	.word  	GRABEXPLODE
+	.byte 	DELAY,7
+	.byte 	SEQUENCE
+	.word  	DUMB
+	.byte 	DELAY,30
+	.byte 	GOTO,-1,194	;FORCE USING WIPEOUT
+	.byte 	SKIP  		;DIE IF NOT GRABBED ANYMORE
+	.word  	HH22	
+;HERO GOT HURT BY DYNAMITE.  IT JUST THROWS HIM UP, ITS A STUNT HE CAN USE.
+
+DYNBLAST:	
+	.byte 	INSTRUCTIONS,$87
+	.byte 	DISABLE,ALL
+	.byte 	SEQUENCE
+	.word  	HBALL		
+	.byte 	ADDMOM,0,-96
+	.byte 	GRAVITY,0
+	.byte 	SOLIDSTATE,OFF
+	.byte 	DELAY,8
+	.byte 	GRAVITY,-1
+	.byte 	ACTIVATE,EFALL
+
+;LOW BITS OF HERO HEALTH ARE 0.  SEE IF THE HERO IS DEAD.  
+
+HH10:  	.byte 	INSTRUCTIONS,$85
+	.byte 	THROWBACK,96,-96
+	.byte 	MOMLIMIT,36,-1		;PUT BACK NORMAL X SPEED
+	.byte 	XVISUAL			;CATCH AGAINST RIGHT OF SCREEN
+	.word  	HH11
+     	.byte 	248
+	.byte 	SETMOM,-36,-96		;IF THAT CASE, THROW OTHER WAY TO
+	.byte 	SETMOM,-36,-96		;PREVENT GETTING STUCK
+HH11:	.byte 	XVISUAL
+	.word  	HH16
+	.byte 	16
+
+HH13:	.byte 	ASSESS
+	.word  	HH20			;IF DEAD, DO THE DEATH BLINK
+	.byte 	0
+	.byte 	CREATE,STATGUYID,255,192,0 ;LAUNCH THE STATUS BAR UPDATER
+	.byte 	DELAY,6
+	.byte 	ACTIVATE,EWALK
+
+HH16:	.byte 	SETMOM,36,-96		;CATCH STUCK AGAINST LEFT EDGE
+	.byte 	SETMOM,36,-96
+	.byte 	SKIP
+	.word  	HH13
+
+;HERO IS DEAD.  ALL HERO ROUTINES MUST GO HERE WHEN DEAD.  IF HE DIED
+;ON SOLID GROUND AND DIDN'T FALL TO HIS DEATH, HE'S JUST RELAUNCHED WITH
+;FRESH HEALTH.  IF HE DIED FROM A FALL, HE MUST GO BACK TO THE WORLD START.
+
+HH20: 	.byte 	IDENTIFY
+	.word  	0		;MAKE THE ENEMIES LEAVE HIM ALONE
+	.byte 	DISABLE,-1	;DISABLE ALL INTERRUPTS. SHARED ENTRY POINT.
+	.byte 	SETMOM,0,0	;FREEZE HIM
+	.byte 	SEQUENCE
+	.word  	HDIE		;IF DEAD, SHOW THE BLINKING DEAD HERO
+HH21:	.byte 	YVISUAL	   	;IF FALLEN, THEN DISAPPEAR
+	.word  	HH22
+	.byte 	192
+	.byte 	SEQUENCE
+	.word   	DUMB
+
+HH22:	.byte 	FACE,CURRENT
+ 	.byte 	SETREG,20,0
+	.byte 	STORE,21	;RESTORE THE HERO'S HEALTH IF MORE HEROS
+ 	.byte 	SOUND	  	;HERO DEATH MUSIC
+	.word  	DEATHRIFF,0,0,0
+	.byte 	DELAY,75
+
+	
+HH23:  	.byte 	ADDHEROS,OURJOY,-1	;DECREMENT HERO COUNT
+	.byte 	GETHEROS,OURJOY		;GET THE COUNT
+	.byte 	EQUAL
+	.word  	HH50
+	.word  	0		;IF NONE LEFT, GAME OVER
+	.byte 	YVISUAL
+	.word  	HH30
+	.byte 	192		;IF NOT DEAD FROM A FALL, JUST RELAUNCH.
+	.byte 	FETCHREG,WORLD
+	.byte 	SKIP
+	.word  	XWIPEOUT	;REQUEST THIS WORLD AGAIN
+HH30: 	
+	.byte 	ACTIVATE,EWAKE	;AND PUT HIM BACK
+
+;NO MORE HEROS, GAME OVER.
+
+HH50:  	.byte 	SETREG,-1,0
+	.byte 	STORE,24
+	.byte 	WORLD,-1	;IF NONE LEFT, GAME OVER REQUEST
+
+	.byte 	ENABLE,HURTING
+HFALL:				;HERO FALLING MOVEMENT LIST
+	.byte 	INSTRUCTIONS,11
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+	.byte 	SOLIDSTATE,SAFE	;NEED CONDITIONAL SOLID CAUSE JUMP GOES
+				;HERE WHEN DONE AND WE HAVE TO TURN IT ON
+				;AFTER WE RE-INIT.
+	.byte 	ENABLE,ALL^DUCKING
+	.byte 	RESETBEHAVIOR,OPTION1|FAST	;RESET CLIMB, CUPS
+	.byte 	ENTITYBITS,$9A		;FIX HIS CONTROL BITS FROM CUPS
+	.byte 	GRAVITY,-1
+	.byte 	FRICTION,DEF_XFRICT,DEF_YFRICT	;RESTORE FROM SUCTION CUPS
+	.byte 	MOMLIMIT,60,DEF_YLIM	;ASSUME FAST SPEED RESTORED
+	.byte 	BUTTON
+	.word  	HF5
+	.byte 	B_BUTTON	;IF B PRESSED, DON'T RESET SPEED
+	.byte 	MOMLIMIT,36,-1	;PUT BACK NORMAL RUNNING SPEED IF NO B
+HF5:
+	.byte 	ADDJOYX
+	.byte 	STANDING	
+	.word  	HF10
+	.byte 	YVISUAL
+	.word  	HF5
+	.byte 	200		;IF OUR FEET GO BELOW 200, WE ARE DEAD
+	.byte 	SKIP
+	.word  	HH20		;FALL UNTIL HIT SOLID OR UNTIL WE DIE
+HF10:	.byte 	ACTIVATE,EWALK	;THEN WALK
+
+HSELECT:			;SELECT KEY
+	.byte 	INSTRUCTIONS,5
+	.byte 	STORE,STATE	;SAVE OUR REGISTER FOR RESUME
+
+HSE5:	.byte 	INSTRUCTIONS,8
+	.byte 	ZEROJOYX,ZEROJOYY
+	.byte 	BUTTON
+	.word  	HSE10
+	.byte 	RIGHT		;IF RIGHT, ITS SELECT ITEM (GO RIGHT)
+	.byte 	BUTTON
+	.word  	HSE20
+	.byte 	LEFT		;IF LEFT, ITS SELECT ITEM (GO LEFT)
+	.byte 	BUTTON
+	.word  	HSE40
+	.byte 	UP|DOWN		;IF UP OR DOWN, ITS USE ITEM.
+
+;SELECT WAS PRESSED, BUT NO ARROW KEYS.  MAKE IT SAFE TO STAY HERE BY
+;INSURING SOLID AND GRAVITY AND HURTING ARE ENABLED.  THEN WAIT TILL
+;SELECT IS RELEASE OR UNTIL THE PLAYER PRESSES AN ARROW KEY.  IF WE
+;ARE ON A LADDER, WE DON'T RESTORE GRAVITY.
+
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+	.byte 	SOLIDSTATE,SAFE	
+	.byte 	IFBEHAVIOR
+	.word  	HSE9
+	.byte 	OPTION1
+	.byte 	GRAVITY,-1	  	;RESTORE GRAVITY UNLESS ON LADDER
+HSE9:	.byte 	ENABLE,ALL^DUCKING
+	.byte 	BUTTON
+	.word  	HSE5
+	.byte 	SELECT
+
+;SELECT IS NO LONGER PRESSED.
+
+HSE9A:	.byte 	ENABLE,ALL^DUCKING	;SOME ENTRY POINTS DISABLE INTS AGAIN
+      	.byte 	TESTFLAG
+	.byte 	ACTIVATE,EWALK
+
+;RIGHT ARROW WITH SELECT
+	
+HSE10:	.byte 	INSTRUCTIONS,5
+	.byte 	LOAD,10
+	.byte 	ADD,1,0	
+	.byte 	LIMIT,7,0
+	.byte 	STORE,10
+	.byte 	SKIP
+	.word  	HSE30
+
+;LEFT ARROW WITH SELECT
+
+HSE20:	.byte 	INSTRUCTIONS,5
+	.byte 	LOAD,10
+	.byte 	EQUAL
+	.word     	HSE30
+	.word  	0	
+	.byte 	ADD
+	.word  	-1
+	.byte 	STORE,10
+HSE30:	.byte 	DELAY,5
+	.byte 	SKIP
+	.word  	HSE5
+
+;UP OR DOWN WITH SELECT
+
+HSE40:	.byte 	DISABLE,ALL	;DON'T LET SOMETHING IMPORTANT GET INTERRUPTED
+	.byte 	LOAD,10		;GET WHAT WE HAVE SELECTED
+	.byte 	LIMIT 
+	.word  	7
+	.byte 	TABLE
+	.word  	ITSDYN		;DYNAMITE
+	.word  	ITSSHIELD
+	.word  	ITSMAP
+	.word  	ITSBOOMER	
+	.word  	ITSSUCT		
+	.word  	ITSKNUCKS
+	.word  	ITSTORCH
+	.word  	ITSKEY
+
+ITSDYN:
+	.byte 	INSTRUCTIONS,$85
+	.byte 	LOAD,16			;GET HOW MANY MAGICS
+	.byte 	NOTEQUAL
+	.word  	HSL10
+	.word  	0			;IF NONE, IGNORE REQUEST
+  	.byte 	LOAD,STATE
+	.byte 	RESUME
+HSL10:	.byte 	ADD,-1,-1	;LOWER COUNT, WE ARE GOING TO THROW ONE
+	.byte 	STORE,16
+	.byte 	INSTRUCTIONS,6
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	
+	.byte 	SOLIDSTATE,SAFE	
+	.byte 	GRAVITY,-1
+	.byte 	SEQUENCE
+	.word  	HTHROW
+	.byte 	BUTTON
+	.word  	HSL30
+	.byte 	DOWN
+	.byte 	SPAWN,MAGICGUYID,16,0,1		
+	.byte 	SKIP
+	.word  	HSL40
+HSL30:	.byte 	SPAWN,MAGICGUYID,16,0,2	 
+HSL40: 	.byte 	DELAY,10
+	.byte 	SKIP
+	.word  	HSE5
+
+ITSSHIELD:
+	.byte 	INSTRUCTIONS,6
+	.byte 	LOAD,6
+	.byte 	EQUAL
+	.word  	HSE9A
+	.word  	0
+	.byte 	ADD
+	.word  	-1
+	.byte 	STORE,6
+	.byte 	CREATE,10,96,128,0
+	.byte 	SKIP
+	.word  	BOO30
+		
+ITSMAP:
+	.byte 	LOAD,11
+	.byte 	EQUAL
+	.word  	HSE9A
+	.word  	0
+	.byte 	FETCHREG,WORLD
+	.byte 	STORE,24
+	.byte 	STATREQUEST,89
+	.byte 	SETSTATPAL,0,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte 	SETSTATPAL,1,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte 	FILLVID,1,0,$41,STATVID,64
+	.byte 	FILLVID,3,0,$41,STATVID,64
+	.byte 	HURT,0,ID
+	.word  	FIREDUMMY
+	.byte 	SKIP
+	.word  	BOO30
+
+STATGUY:.word  	MAPX		;STATUS BAR MONITOR
+	.word  	STATCODE
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0	
+
+STATCODE:
+	.byte 	INSTRUCTIONS,$8A
+	.byte 	GRAVITY,0
+	.byte 	JOYSTICK,0
+	.byte 	LOAD,24
+	.byte 	REGINDEX
+	.word  	MAPPERX
+	.byte 	GOTO,REGISTER,-1
+	.byte 	LOAD,24
+	.byte 	REGINDEX
+	.word  	MAPPERY
+	.byte 	GOTO,-1,REGISTER	;POSITION THE Y
+
+STAT10:	.byte 	BUTTON
+	.word  	STAT20
+	.byte 	B_BUTTON|A_BUTTON
+	.byte 	SKIP
+	.word  	STAT10			
+STAT20:	.byte 	ZEROJOYX,ZEROJOYY
+	.byte 	ENDREQUEST
+
+MAPPERX:
+	.byte 	255,144,192,192,240,208,240,56,24,208		;0-9
+	.byte 	160,160,160,24,24,144,88,176,56,144		;10-19
+	.byte 	40,176,40,176,240,192,240,72,72,224		;20-29
+	.byte 	176,192,176,40,40,160,88,192,24,144		;30-39
+	.byte 	24,168,160,224,224,88,40,240,192,192		;40-49
+	.byte 	56,56,240,72,208,88,208,24,16,160		;50-59
+	.byte 	208,208,104,88,255,192,72,72,240,56		;60-69
+	.byte 	224,24,224,40,168,176,184,192,200,208		;70-79
+	.byte 	216,224,144,240,192,88,72,8			;80-89
+
+MAPPERY:
+	.byte 	192,24,24,40,72,56,24,176,40,128 		;0-9
+	.byte 	144,160,128,24,128,176,128,72,40,144		;10-19
+	.byte 	144,88,72,40,88,56,40,176,40,128		;20-29
+	.byte 	144,160,128,24,128,176,144,72,56,160		;30-39
+	.byte 	144,88,40,88,40,176,40,128,144,128		;40-49
+	.byte     	24,128,160,144,72,56,144,160,128,56		;50-59
+	.byte 	88,40,176,40,192,112,24,128,144,144		;60-69
+	.byte 	72,72,144,160,8,8,8,8,8,8			;70-79
+	.byte 	8,8,40,8,88,160,8,40				;80-89
+
+ITSBOOMER:
+BOO10:	.byte 	INSTRUCTIONS,$88
+	.byte 	LOAD,5
+	.byte 	EQUAL
+	.word  	HSE9A  		;UPDATES STATUS BAR
+	.word  	0
+	.byte 	INSTRUCTIONS,6
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	
+	.byte 	SOLIDSTATE,SAFE	
+	.byte 	GRAVITY,-1
+	.byte 	SEQUENCE
+	.word  	HTHROW
+	.byte 	NOTBUTTON
+	.word  	BOO30
+	.byte 	DOWN|UP
+	.byte 	INSTRUCTIONS,4
+	.byte 	SPAWN,BOOMCHUCK,20,0,0	 
+	.byte 	LOAD,5
+	.byte 	ADD
+	.word  	-1
+	.byte 	STORE,5
+BOO30:	.byte 	CREATE,STATGUYID,255,192,0
+	.byte 	SKIP
+	.word  	HSE9A		
+ITSSUCT:   
+	.byte 	LOAD,7
+	.byte 	EQUAL
+	.word  	HSE9A
+	.word  	0    
+	.byte 	IFBEHAVIOR
+	.word  	SUC30
+	.byte 	FAST
+	.byte 	SETBEHAVIOR,FAST
+	.byte 	ADD,1,0		     		;TURN SUCTION ON
+	.byte 	CREATE,STATGUYID,255,192,0
+
+SUC5:	.byte 	INSTRUCTIONS,5
+ 	.byte 	GRAVITY,0
+	.byte 	ENABLE,ALL^DUCKING
+	.byte 	SEQUENCE
+	.word  	ONLADDER
+	.byte 	SETBEHAVIOR,WEAK	;WHEN SET, WE ARE NOT ANIMATING
+	.byte 	MOMLIMIT,8,24
+	.byte 	ENTITYBITS,$BB		;CONSTANT FRICTION, HEAD TOPS OUT
+	.byte 	FRICTION,16,16		;GIVE SOME FRICTION
+SUC6:
+	.byte 	ADDJOYX,ADDJOYY
+	.byte 	SPEED
+	.word  	SUC20
+	.byte 	7,-1		;IF NOT MOVING ON X AXIS, ONLADDER IS IMAGE
+	.byte 	IFNBEHAVIOR
+	.word  	SUC6
+	.byte 	WEAK		;SO IF WE ARE MOVING, IS SUCTHORZ ACTIVE?
+	.byte 	SEQUENCE
+	.word  	SUCTHORZ
+	.byte 	RESETBEHAVIOR,WEAK	;IF NOT, GET IT AND RESET WEAK
+	.byte 	SKIP
+	.word  	SUC6
+
+;WE ARE NOT MOVING ON THE X AXIS SO THE PICTURE ONLADDER MUST BE
+;ACTIVE AND BEHAVIOR WEAK SET.
+
+SUC20:	.byte 	IFBEHAVIOR
+	.word  	SUC6
+	.byte 	WEAK		;SO IF WE ARE MOVING, IS SUCTHORZ ACTIVE?
+	.byte 	SEQUENCE
+	.word  	ONLADDER
+	.byte 	SETBEHAVIOR,WEAK	;IF NOT, GET IT AND RESET WEAK
+	.byte 	SKIP
+	.word  	SUC6
+
+SUC30: 	.byte 	LOAD,7			;TURN SUCTION OFF
+	.byte 	CREATE,STATGUYID,255,192,0
+	.byte 	ACTIVATE,EFALL
+
+
+ITSKNUCKS:
+	.byte 	SKIP		;KNUCKS ARE ALWAYS ON
+	.word  	HSE9A
+	 	
+ITSTORCH:
+	.byte 	LOAD,4
+	.byte 	EQUAL
+	.word  	HSE9A
+	.word  	0
+	.byte 	CREATE,FIREDUMMY,255,192,60
+	.byte 	ADD
+	.word  	-1
+	.byte 	STORE,4
+	.byte 	SKIP
+	.word  	BOO30
+
+ITSKEY:	.byte 	INSTRUCTIONS,5
+	.byte 	DISABLE,ALL
+	.byte 	LOAD,8
+	.byte 	EQUAL
+	.word  	HSE9A
+	.word  	0
+	.byte 	ACTIVE
+	.word  	KY10
+	.byte 	ID
+	.word  	39
+	.byte 	SKIP
+	.word  	HSE9A
+KY10:	.byte 	INSTRUCTIONS,4
+	.byte 	ADD
+	.word  	-1
+	.byte 	HURT,$18,ID
+	.word  	39
+	.byte 	STORE,8
+	.byte 	SKIP
+	.word  	BOO30
+
+SHOWJUMP:
+	.word  	HERO3		;JUMPING
+	.word  	-1
+	.byte 	$00,-1
+	.byte 	0,0
+	.byte 	0,0
+	
+HJUMP:				;HERO JUMPING MOVEMENT LIST
+	.byte 	INSTRUCTIONS,6
+	.byte 	IFBEHAVIOR
+	.word  	HC45
+	.byte 	FAST
+	.byte 	STANDING
+	.word  	HJ0
+ 	.byte 	FLOOR
+	.word  	HJ5
+	.byte 	5		;IF NOT STANDING, JUST A PREMATURE PRESS?
+				;FORGIVE THE PLAYER IF SO.
+    	.byte 	RESUME		;DON'T JUMP IF NOT STANDING
+
+;SPECIAL MODE THAT ALLOWS THE PLAYER TO HIT THE JUMP BUTTON BEFORE THE HERO 
+;LANDS.  IF HE KEEPS IT DOWN, WE WILL HONOR IT WHEN WE LAND.  BUT IF 
+;ITS RELEASED WE WON'T DO IT.
+
+HJ5:  	.byte 	ADDJOYX
+	.byte 	STANDING	;GIVE THE HERO A SMALL TIME TO EITHER
+	.word  	HJ0		;FIND SOLID OR IF TIMEOUT, GO TO STAND MODE
+	.byte 	NOTBUTTON
+	.word  	HF5
+	.byte 	A_BUTTON	;IF NOT STILL DOWN, END
+	
+	.byte 	ADDJOYX
+	.byte 	STANDING
+	.word  	HJ0
+	.byte 	NOTBUTTON
+	.word  	HF5
+	.byte 	A_BUTTON	;IF NOT STILL DOWN, END
+	
+	.byte 	ADDJOYX
+	.byte 	STANDING
+	.word  	HJ0
+	.byte 	NOTBUTTON
+	.word  	HF5
+	.byte 	A_BUTTON	;IF NOT STILL DOWN, END
+	
+	.byte 	ADDJOYX
+	.byte 	STANDING
+	.word  	HJ0
+	.byte 	NOTBUTTON
+	.word  	HF5
+	.byte 	A_BUTTON	;IF NOT STILL DOWN, END
+	
+	.byte 	ADDJOYX
+	.byte 	STANDING
+	.word  	HJ0
+	.byte 	SKIP
+	.word  	HF5
+
+HJ0:  	.byte 	INSTRUCTIONS,7
+  	.byte 	ENABLE,ALL^DUCKING^JUMPING	;ENABLE SOME INTERRUPTS AGAIN 
+	.byte 	BUTTON
+	.word  	HDOWN		;IF DOWN + JUMP THEN JUMP DOWN.
+	.byte 	DOWN	
+	.byte 	SEQUENCE
+	.word  	SHOWJUMP
+	.byte 	SETCOUNTER,5	;SET MAX TIMES THROUGH LOOP
+	.byte 	LOAD,31
+	.byte 	SOLIDSTATE,REGISTER
+	.byte 	SETMOM,-1,-72	;UPWARDS WITH MAX SPEED AT START
+HJ10:
+	.byte 	BUTTON
+	.word  	HJ15
+	.byte 	A_BUTTON	;IF A BUTTON STILL DOWN, CONTINUE
+	.byte 	ADDMOM,0,48	;CANCEL SOME UPWARDS TRAVEL WHEN ENDING
+  	.byte 	ACTIVATE,EFALL	;GO TO FALL MODE WHEN DONE JUMPING			
+HJ15:
+	.byte 	ADDJOYX		;USE JOYSTICK X MOMENTUM IF CONTINUING
+	.byte 	COUNT
+	.word  	HJ20		;WHEN COUNTER RUNS OUT, LEAVE JUMP MODE
+	.byte 	1	
+	.byte 	ADDMOM,0,-28	;OTHERWISE, JUST CANCEL GRAVITY
+	.byte 	SKIP
+	.word  	HJ10
+
+;WE DID A FULL HEIGHT JUMP.  
+
+HJ20: 	.byte 	SETMOM,-1,-72
+	
+HJ30: 	.byte 	ACTIVATE,EFALL	
+
+;THE HERO WANTED TO JUMP BUT HE PUSHED DOWN.  IF WE ARE ABOVE THE VERY
+;BOTTOM WE WILL ALLOW HIM TO JUMP DOWN.
+
+HDOWN:	.byte 	YVISUAL
+	.word  	HDN10
+	.byte 	154
+HDN5:	.byte 	RESUME		;DON'T ALLOW JUMP DOWN IF TOO LOW
+HDN10:	.byte 	BUTTON
+	.word  	HDN5
+	.byte 	LEFT|RIGHT	;DON'T GET A JUMP DOWN CAUSE THEY PRESS HARD
+	.byte 	SEQUENCE
+	.word  	SHOWJUMP
+	.byte 	INSTRUCTIONS,3
+	.byte 	LOAD,31
+	.byte 	SOLIDSTATE,REGISTER
+	.byte 	SETMOM,-1,-32	;UPWARDS 4 PIXELS
+	.byte 	ADDJOYX
+	.byte 	ADDJOYX
+	.byte 	ADDJOYX
+	.byte 	ADDJOYX
+	.byte 	ADDJOYX
+	.byte 	ADDJOYX
+	.byte 	ADDJOYX		;GIVE ENOUGH TIME TO JUST MAKE IT DOWN
+	.byte 	ACTIVATE,EFALL
+
+HATTACK:				;HERO ATTACKING MOVEMENT LIST
+	.byte 	INSTRUCTIONS,10
+	.byte 	IFBEHAVIOR
+	.word  	HC45
+	.byte 	FAST
+
+	.byte 	ENABLE,HURTING|JUMPING	;DON'T LET HIM BE INVULNERABLE
+
+;	.byte 	GETCOLUMN
+;	.byte 	SHOWREG,3,6,STATVID
+
+;	.byte 	FETCHREG,YVISUAL
+;	.byte 	CDIVIDE,8
+;	.byte 	SHOWREG,3,12,STATVID
+
+;	.byte 	FETCHREG,WORLD
+;	.byte 	SHOWREG,3,18,STATVID
+
+	.byte 	LOAD,9
+	.byte 	NOTEQUAL		;MUST BE STANDING FOR ATTACK
+	.word  	AA10
+	.word  	1
+	.byte 	SEQUENCE
+	.word  	PPUNCH		;DO POWERPUNCH
+
+AA10: 	.byte 	SEQUENCE
+	.word  	WPUNCH 		;DO WEAK PUNCH
+
+HMIDDLE:
+	.byte 	INSTRUCTIONS,3
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+	.byte 	SOLIDSTATE,SAFE		;HERO'S KICK
+	.byte 	ENABLE,ALL^ATTACKING^DUCKING	;ENABLE ALL BUT ATTACKING.
+	.byte 	FINISH
+	.byte 	ACTIVATE,EWALK
+	
+HSTAND:				;HERO STANDING MOVEMENT LIST
+	.byte 	ENABLE,ALL^DUCKING
+HST10:
+	.byte 	ADDJOYX		;APPLY JOYSTICK MOMENTUM WHILE STANDING
+	.byte 	SPEED
+	.word  	HST20		;IF SPEED LESS THAN 8, KEEP STANDING
+	.byte 	7,-1
+	.byte 	ACTIVATE,EWALK	;GO INTO WALK MODE IF MOMENTUM >7 (MOVING)
+HST20:
+	.byte 	ADDJOYX
+	.byte 	YVISUAL
+	.word  	HST10
+	.byte 	200		;IF OUR FEET GO BELOW 200, WE ARE DEAD
+	.byte 	SKIP
+	.word  	HH20		
+
+;HERE'S THE HERO'S WORLD COMMAND LOGIC.  
+
+HCOMMAND:			;WORLD COMMAND.  
+	.byte 	INSTRUCTIONS,10
+	.byte 	STORE,0,SWAP,STORE,1	;SAVE WORD REGISTER
+	.byte 	WORLDCMD
+	.word  	HC60
+	.byte 	CLIMB
+	.byte 	STANDING
+	.word  	HC39
+     	.byte 	RESUME
+HC39:	.byte 	WORLDCMD
+	.word  	HC50
+	.byte 	DOOR
+HC40:  	.byte 	BLOAD,1,SWAP,BLOAD,0
+HC45:	.byte 	RESUME	     	;SHARED WITH MECHMOVE ROBOT
+
+HC50:	.byte 	INSTRUCTIONS,10
+ 	.byte 	ACTIVE
+	.word  	HW20		;CANT GO IN IF ROCK GATE BARRIER THERE
+	.byte 	ID
+	.word  	17 
+	.byte 	ACTIVE
+	.word  	HW20		;CAN'T GO IN IF METAL GATE (LOCKED)
+	.byte 	ID
+	.word  	39	
+	.byte 	FETCHREG,PARAM2
+	.byte 	LIMIT
+	.word  	200
+	.byte  	WORLDGOTO
+	.word      DOORBASE
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER
+	.byte 	SOLIDSTATE,SAFE
+	.byte      SKIP
+	.word  	NEWTIME
+
+HC60: 	.byte 	ENABLE,HURTING|SELECTING
+	.byte 	IFBEHAVIOR
+	.word  	HC70	
+	.byte 	OPTION1  	  ;IF ALREADY ON LADDER ITS A SEPARATE THING
+	.byte 	INSTRUCTIONS,7
+	.byte 	BUTTON
+	.word  	HC65
+	.byte 	UP		;ALWAYS GO ON LADDER IF UP PRESSED
+	.byte 	STANDING	
+	.word  	HC40		;IF STANDING, ONLY UP WORKS
+	.byte 	NOTBUTTON
+	.word  	HC40
+	.byte 	DOWN 
+
+;WE WANT TO GO ONTO THE LADDER.  EITHER UP WAS PRESSED OR WE WEREN'T STANDING
+;AND DOWN WAS PRESSED.
+
+HC65:	.byte 	INSTRUCTIONS,8
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+	.byte 	SOLIDSTATE,SAFE	
+	.byte 	SETBEHAVIOR,OPTION1	;SIGNAL THAT WE ARE ON A LADDER
+	.byte 	SEQUENCE
+	.word  	ONLADDER
+  	.byte 	GRAVITY,0		;NO GRAVITY, WE ARE ON A LADDER
+	.byte 	SETMOM,0,0
+	.byte 	ENABLE,TESTING 
+	.byte 	TESTFLAG		;SEE IF STILL ON LADDER	
+	.byte 	ACTIVATE,EFALL		;IF NOT, FALL DOWN
+
+;WE ARE ALREADY ON A LADDER
+
+HC70:	.byte 	INSTRUCTIONS,$8F
+	.byte 	YVISUAL
+	.word  	HC95
+	.byte 	12
+	.byte 	YVISUAL
+	.word  	HC72
+	.byte 	196
+     	.byte 	SKIP
+	.word  	HC96
+
+
+HC72:	.byte 	BUTTON
+	.word  	HC76
+	.byte 	LEFT|RIGHT
+     	.byte 	SETMOM,0,-1		;IF NOT PRESSING LEFT OR RIGHT, 0 X
+	.byte 	SKIP
+	.word  	HC73
+
+HC76:	.byte 	ADDJOYX			;KEEP RESPONSIVE TO JOYSTICK X DIR
+HC73:	.byte 	BUTTON
+	.word  	HC75
+	.byte 	UP	
+	.byte 	NOTBUTTON
+	.word  	HC80
+	.byte 	DOWN
+
+	.byte 	SETMOM,-1,16		;DOWN IS PRESSED. MOVE DOWN ON LADDER
+	.byte 	SKIP
+	.word  	HC90
+
+HC75:	.byte 	SETMOM,-1,-16		;UP IS PRESSED, MOVE UP ON LADDER
+	.byte 	SKIP
+	.word  	HC90
+
+HC80:	.byte 	SETMOM,-1,0		;IF NOT UP OR DOWN, ZERO IT
+HC90:	.byte 	ENABLE,TESTING 
+	.byte 	TESTFLAG      		;LOOP AGAIN IF STILL ON LADDER
+	.byte 	ACTIVATE,EFALL		;OTHERWISE, FALL OFF
+
+
+HC95:	.byte 	FETCHREG,PARAM2
+HC94:	.byte 	WORLDGOTO
+	.word  	CLIMBASE
+	.byte 	SETMOM,56,0
+	.byte 	SETMOM,0,0			
+	.byte 	CREATE,WORLDGUYID,255,192,0	;LAUNCH THE WORLD CONFIGURER
+	.byte 	SKIP
+	.word  	HC90
+
+HC96:	.byte 	FETCHREG,PARAM2
+	.byte 	IFPARAM
+	.word  	HC97
+	.byte 	1
+	.byte 	NOTEQUAL
+	.word  	HC94
+	.word  	4
+HC97:	.byte 	ADD
+	.word  	1
+	.byte 	SKIP
+	.word  	HC94
+
+DOORBASE:
+	.byte  	82,0,0		;DOOR0 		    LEVEL 0
+	.word  	DONTCARE,2
+	.byte  	1,16,0		;DOOR1 		   
+	.word  	129,143
+	.byte 	2,4,0		;DOOR2
+	.word  	DONTCARE,2	
+	.byte 	1,2,0		;DOOR3
+	.word  	143,173	
+	.byte  	74,11,0   	;DOOR4 	WINDOW0
+	.word  	DONTCARE,3
+	.byte  	2,3,0		;DOOR5	WINDOW0
+	.word  	DONTCARE,33
+	.byte  	75,11,0		;DOOR6 	WINDOW1
+	.word  	DONTCARE,3
+	.byte  	2,3,0		;DOOR7 	WINDOW1
+	.word  	DONTCARE,41
+	.byte  	76,11,0		;DOOR8 	WINDOW2
+	.word  	DONTCARE,3
+	.byte  	2,3,0		;DOOR9 	WINDOW2
+	.word  	DONTCARE,64
+	.byte  	77,11,0		;DOOR10 WINDOW3
+	.word  	DONTCARE,3
+	.byte  	2,3,0		;DOOR11 WINDOW3
+	.word  	DONTCARE,72
+	.byte  	78,11,0		;DOOR12 WINDOW4
+	.word  	DONTCARE,3
+	.byte  	2,3,0             ;DOOR13	WINDOW4
+	.word  	DONTCARE,105
+	.byte  	79,11,0     	;DOOR14 WINDOW5
+	.word  	DONTCARE,3
+	.byte  	2,3,0		;DOOR15 WINDOW5
+	.word  	DONTCARE,120
+	.byte  	80,11,0		;DOOR16 WINDOW6
+	.word  	DONTCARE,3
+	.byte  	2,3,0		;DOOR17 WINDOW6
+	.word  	119,129
+	.byte  	81,11,0		;DOOR18 WINDOW7
+	.word  	DONTCARE,2
+	.byte  	2,3,0		;DOOR19 WINDOW7
+	.word  	119,150
+	.byte  	83,0,0		;DOOR20
+	.word  	DONTCARE,2
+	.byte  	81,1,0		;DOOR21 
+	.word  	45,75
+	.byte  	6,3,0		;DOOR22 
+	.word  	DONTCARE,7
+	.byte  	2,16,0		;DOOR23 
+	.word  	119,140
+	.byte  	26,3,0		;DOOR24 
+	.word  	DONTCARE,7
+	.byte  	6,3,0		;DOOR25 
+	.word  	204,231
+	.byte  	44,3,0		;DOOR26 
+	.word  	DONTCARE,7
+	.byte 	26,3,0		;DOOR27
+	.word  	183,211	
+	.byte 	61,3,0		;DOOR28
+	.word  	DONTCARE,7	
+	.byte 	44,3,0		;DOOR29
+	.word  	248,275	
+	.byte 	3,9,0		;DOOR30
+	.word  	DONTCARE,3
+	.byte 	61,3,0		;DOOR31
+	.word  	DONTCARE,146	
+	.byte 	23,11,0		;DOOR32
+	.word  	DONTCARE,2	
+	.byte 	3,11,0		;DOOR33
+	.word  	207,238	
+	.byte 	42,9,0		;DOOR34
+	.word  	DONTCARE,3	
+	.byte 	23,11,0		;DOOR35
+	.word  	107,138
+	.byte 	59,11,0		;DOOR36
+	.word  	DONTCARE,2	
+	.byte 	42,11,0		;DOOR37
+	.word  	215,246	
+	.byte 	17,5,0		;DOOR38
+	.word  	DONTCARE,3	
+	.byte 	59,11,0		;DOOR39
+	.word  	DONTCARE,149	
+	.byte 	37,5,0		;DOOR40
+	.word  	DONTCARE,3	
+	.byte 	17,5,0		;DOOR41
+	.word  	111,139	
+	.byte 	54,5,0		;DOOR42
+	.word  	DONTCARE,3	
+	.byte 	37,5,0		;DOOR43
+	.word  	111,139	
+	.byte 	70,5,0		;DOOR44
+	.word  	DONTCARE,3	
+	.byte 	54,5,0		;DOOR45
+	.word  	183,211	
+	.byte 	4,17,0		;DOOR46
+	.word  	DONTCARE,2	
+	.byte 	70,5,0		;DOOR47		 
+	.word  	DONTCARE,156	
+	.byte 	43,17,0		;DOOR48
+	.word  	DONTCARE,2	
+	.byte 	70,5,0		;DOOR49
+	.word  	232,258	
+	.byte 	60,8,0		;DOOR50
+	.word  	DONTCARE,5	
+	.byte 	43,9,0		;DOOR51
+	.word  	87,117
+	.byte 	84,0,0		;DOOR52
+	.word  	DONTCARE,2	
+	.byte 	60,17,0		;DOOR53
+	.word  	115,146
+	.byte 	21,18,0		;DOOR54
+	.word  	DONTCARE,2
+	.byte 	84,0,0		;DOOR55		    
+	.word  	3,34	
+	.byte 	14,11,0		;DOOR56
+	.word  	DONTCARE,2
+	.byte 	58,0,0		;DOOR57		    
+	.word  	0,30	
+	.byte 	24,9,0		;DOOR58
+	.word  	DONTCARE,5
+	.byte 	43,17,0		;DOOR59
+	.word  	DONTCARE,58	
+	.byte 	34,11,0		;DOOR60
+	.word  	DONTCARE,2
+	.byte 	14,7,0		;DOOR61
+	.word  	78,109	
+	.byte 	51,11,0		;DOOR62
+	.word  	DONTCARE,2
+	.byte 	34,9,0		;DOOR63
+	.word  	79,109	
+	.byte 	67,11,0		;DOOR64
+	.word  	DONTCARE,2
+	.byte 	51,9,0		;DOOR65
+	.word  	95,125	
+	.byte 	16,5,0		;DOOR66
+	.word  	DONTCARE,5
+	.byte 	67,9,0		;DOOR67
+	.word  	103,133	
+	.byte 	36,5,0		;DOOR68
+	.word  	DONTCARE,5
+	.byte 	16,15,0		;DOOR69
+	.word  	95,124
+	.byte 	85,0,0		;DOOR70
+	.word  	DONTCARE,2	
+	.byte 	36,5,0		;DOOR71
+	.word  	DONTCARE,73
+	.byte 	45,2,0		;DOOR72
+	.word  	167,197
+	.byte 	85,0,0		;DOOR73
+	.word  	3,34
+	.byte 	53,15,0		;DOOR74
+	.word  	DONTCARE,4	
+	.byte 	36,15,0		;DOOR75
+	.word  	107,136
+	.byte 	69,15,0		;DOOR76
+	.word  	DONTCARE,4
+	.byte 	53,5,0		;DOOR77
+	.word  	196,226
+	.byte 	7,2,0		;DOOR78
+	.word  	DONTCARE,5	
+	.byte 	69,15,0		;DOOR79
+	.word  	156,184
+	.byte 	27,17,0		;DOOR80
+	.word  	DONTCARE,3	
+	.byte 	7,17,0		;DOOR81
+	.word  	87,115
+	.byte 	45,2,0		;DOOR82
+	.word  	DONTCARE,5	
+	.byte 	27,17,0		;DOOR83
+	.word  	91,119
+	.byte 	62,2,0		;DOOR84
+	.word  	DONTCARE,5	
+	.byte 	45,2,0		;DOOR85
+	.word  	DONTCARE,93
+	.byte 	20,17,0		;DOOR86		     
+	.word  	DONTCARE,2	
+	.byte 	40,17,0		;DOOR87
+	.word  	DONTCARE,58
+	.byte 	73,17,0		;DOOR88
+	.word  	DONTCARE,2	
+	.byte 	20,17,0		;DOOR89
+	.word  	87,118
+	.byte 	57,17,0		;DOOR90
+	.word  	DONTCARE,2	
+	.byte 	73,17,0		;DOOR91
+	.word  	139,170
+	.byte 	40,17,0		;DOOR92
+	.word  	99,130	
+	.byte 	57,17,0		;DOOR93
+	.word  	131,162
+	.byte 	25,3,0		;DOOR94
+	.word  	DONTCARE,2	
+	.byte 	59,9,0		;DOOR95
+	.word  	256,270
+	.byte 	5,3,0		;DOOR96
+	.word  	DONTCARE,2	
+	.byte 	25,3,0		;DOOR97
+	.word  	DONTCARE,50
+	.byte 	61,3,0		;DOOR98
+	.word  	222,250	
+	.byte 	5,3,0		;DOOR99
+	.word  	43,74
+	.byte 	25,3,0		;DOOR100
+	.word  	63,94	
+	.byte 	17,5,0		;DOOR101
+	.word  	DONTCARE,51
+	.byte 	64,0,0		;DOOR102  	SECRET DOOR   
+	.word  	DONTCARE,2
+	.byte 	40,17,0		;DOOR103
+	.word  	DONTCARE,2
+	.byte 	14,11,0		;DOOR104
+	.word  	DONTCARE,58	
+	.byte 	22,7,0		;DOOR105   DOOR TO BOSS ROOM
+	.word  	DONTCARE,2
+	.byte 	71,8,0		;DOOR106   DOOR BACK OUT
+	.word  	165,193	
+	.byte 	17,0,0		;DOOR107   
+	.word  	79,94
+	.byte 	0,0,0		;DOOR108   DOOR TO END SCREEN
+	.word  	DONTCARE,0	
+	.byte 	10,11,0		;DOOR109
+	.word  	DONTCARE,2
+	.byte 	32,16,0		;DOOR110
+	.word  	DONTCARE,2	
+	.byte 	12,16,0		;DOOR111
+	.word  	115,146
+	.byte 	30,11,0		;DOOR112
+	.word  	DONTCARE,2	
+	.byte 	49,16,0		;DOOR113
+	.word  	DONTCARE,2
+	.byte 	32,16,0		;DOOR114
+	.word  	156,186	
+	.byte 	48,11,0		;DOOR115
+	.word  	DONTCARE,2
+	.byte 	9,15,0		;DOOR116
+	.word  	DONTCARE,2	
+	.byte 	49,16,0		;DOOR117
+	.word  	DONTCARE,194
+	.byte 	29,15,0		;DOOR118
+	.word  	DONTCARE,2	
+	.byte 	9,15,0		;DOOR119
+	.word  	115,146
+	.byte 	47,15,0		;DOOR120
+	.word  	DONTCARE,2	
+	.byte 	29,15,0		;DOOR121
+	.word  	119,150
+	.byte 	29,15,0		;DOOR122
+	.word  	DONTCARE,90	
+	.byte 	68,0,0		;DOOR123
+	.word  	DONTCARE,2
+	.byte 	72,3,0		;DOOR124	
+	.word  	DONTCARE,139		      
+	.byte 	52,0,0		;DOOR125
+	.word  	DONTCARE,2
+	.byte 	68,0,0		;DOOR126
+	.word  	107,138
+	.byte 	56,1,0		;DOOR127
+	.word  	DONTCARE,3
+	.byte 	72,3,0		;DOOR128
+	.word  	207,235
+	.byte 	48,11,0		;DOOR129
+	.word  	DONTCARE,66
+	.byte 	56,3,0		;DOOR130
+	.word  	163,191	
+	.byte 	49,16,0		;DOOR131
+	.word  	DONTCARE,130
+	.byte 	31,11,0		;DOOR132
+	.word  	159,183	
+	.byte 	48,11,0		;DOOR133
+	.word  	103,134
+	.byte 	65,7,0		;DOOR134   
+	.word  	DONTCARE,114
+	.byte 	30,11,0		;DOOR135
+	.word  	DONTCARE,58
+	.byte 	31,11,0		;DOOR136
+	.word  	DONTCARE,3	
+	.byte 	32,16,0		;DOOR137
+	.word  	DONTCARE,98
+	.byte 	11,11,0		;DOOR138
+	.word  	147,171	
+	.byte 	30,11,0		;DOOR139
+	.word  	91,122
+	.byte 	10,11,0		;DOOR140
+	.word  	DONTCARE,58	
+	.byte 	11,11,0		;DOOR141
+	.word  	DONTCARE,3
+	.byte 	12,16,0		;DOOR142
+	.word  	DONTCARE,74	
+	.byte 	19,3,0		;DOOR143
+	.word  	DONTCARE,3
+	.byte 	10,11,0		;DOOR144
+	.word  	91,122	
+	.byte 	39,3,0		;DOOR145
+	.word  	DONTCARE,3
+	.byte 	19,3,0		;DOOR146
+	.word  	195,223	
+	.byte 	15,17,0		;DOOR147
+	.word  	DONTCARE,2
+	.byte 	39,3,0		;DOOR148
+	.word  	179,207	
+	.byte 	35,0,0		;DOOR149
+	.word  	DONTCARE,2
+	.byte 	15,0,0		;DOOR150
+	.word  	79,110	
+	.byte 	66,17,0		;DOOR151
+	.word  	68,99
+	.byte 	72,3,0		;DOOR152
+	.word  	DONTCARE,3	
+	.byte 	0,0,0		;DOOR153     NOT USED
+	.word  	DONTCARE,0
+	.byte 	0,0,0		;DOOR154     NOT USED
+	.word  	DONTCARE,0	
+	.byte 	33,1,0		;DOOR155
+	.word  	DONTCARE,2
+	.byte 	13,1,0		;DOOR156
+	.word  	51,82	
+	.byte 	50,1,0		;DOOR157
+	.word  	DONTCARE,2
+	.byte 	33,17,0		;DOOR158
+	.word  	51,82	
+	.byte 	18,8,0		;DOOR159
+	.word  	DONTCARE,58
+	.byte 	66,17,0		;DOOR160
+	.word  	DONTCARE,2	
+	.byte 	50,17,0		;DOOR161
+	.word  	73,98
+	.byte 	86,0,0    	;DOOR162
+	.word  	DONTCARE,2
+	.byte 	50,1,0     	;DOOR163
+	.word  	DONTCARE,58
+	.byte 	28,1,0		;DOOR164
+	.word  	DONTCARE,2
+	.byte 	18,8,0		;DOOR165
+	.word  	75,106
+	.byte 	63,1,0		;DOOR166
+	.word  	DONTCARE,2
+	.byte 	28,12,0		;DOOR167
+	.word  	55,86
+	.byte 	55,8,0		;DOOR168
+	.word  	DONTCARE,2
+	.byte 	63,12,0		;DOOR169
+	.word  	187,218
+	.byte 	0,0,0		;DOOR170     NOT USED
+	.word  	DONTCARE,0
+	.byte 	55,8,0		;DOOR171
+	.word  	71,103
+	.byte 	46,1,0		;DOOR172
+	.word  	DONTCARE,2
+	.byte 	18,8,0		;DOOR173
+	.word  	DONTCARE,2
+	.byte 	8,12,0		;DOOR174
+	.word  	DONTCARE,2
+	.byte 	46,12,0   	;DOOR175
+	.word  	215,246
+	.byte 	87,0,0    	;DOOR176
+	.word  	DONTCARE,2
+	.byte 	8,1,0		;DOOR177
+	.word  	63,94
+	.byte 	38,8,0		;DOOR178
+	.word  	DONTCARE,2
+	.byte 	8,12,0		;DOOR179
+	.word  	DONTCARE,61
+	.byte 	71,8,0		;DOOR180
+	.word  	DONTCARE,2
+	.byte 	38,8,0		;DOOR181
+	.word  	103,134
+	.byte 	65,16,0		;DOOR182
+	.word  	DONTCARE,2
+	.byte 	49,16,0		;DOOR183
+	.word  	236,266
+
+	.byte 	86,1,0		;DOOR184
+	.word  	45,75
+	.byte 	86,1,0		;DOOR185
+	.word  	45,75
+
+
+
+CLIMBASE:
+	.byte 	62,0,0		;CLIMB0	 DOWN
+	.word  	135,164
+	.byte 	41,20,0		;CLIMB1	 UP
+	.word  	DONTCARE,16
+	.byte 	13,0,0		;CLIMB2	 GOING DOWN
+	.word  	DONTCARE,1
+	.byte 	41,0,0		;CLIMB3	 DOWN
+	.word  	DONTCARE,16
+	.byte 	58,20,0		;CLIMB4	 UP
+	.word  	DONTCARE,16
+	.byte 	21,0,0		;CLIMB5	 GOING DOWN
+	.word  	DONTCARE,16
+	.byte 	12,20,0		;CLIMB6	 UP
+	.word  	DONTCARE,0
+	.byte 	21,20,0		;CLIMB7	 UP
+	.word  	DONTCARE,16	
+
+
+;******************* ENTITY CODE ************************
+	
+SKLETON:
+	.word    	SKELWLK2	;WAKEUP
+	.word  	SKLWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SKELHURT  	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SKEL1		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SKELWLK3	;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	SKELWLK2   	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	SLKWALKS	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SKELATAK	;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,2
+	.byte 	$25,$11
+	.byte 	$11,$01
+	.word  	SKELATAK	;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,2
+	.byte 	$25,$02
+	.byte 	$11,$01
+	.word  	SKELATAK	;FAR ATTACK
+	.word  	ENFAR   
+	.byte 	$40,2
+	.byte 	$25,$01
+	.byte 	$11,$01
+	.word  	SKELATAK	;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,0
+	.byte 	$25,$11
+	.byte 	$11,$11
+	.word  	SKEL2    	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+
+SKLWAKE:
+	.byte 	SETBEHAVIOR,DYING|HIJUMPER
+	.byte 	SETREG,2,0
+	.byte 	SKIP
+	.word  	BRW10
+TEDCODE:
+	.word    	TED2		;WAKEUP
+	.word  	TEDWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	TEDHURT  	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	TED1		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	TED2		;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	TED2   		;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	TEDS		;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	TEDS		;NEAR ATTACK
+	.word  	TEDSHOOT 
+	.byte 	$40,-1
+	.byte 	$25,$11
+	.byte 	$11,$01
+	.word  	TEDS		;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,-1
+	.byte 	$25,$02
+	.byte 	$11,$01
+	.word  	TEDS		;FAR ATTACK
+	.word  	ENFAR   
+	.byte 	$40,-1
+	.byte 	$25,$01
+	.byte 	$11,$01
+	.word  	TEDS		;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,0
+	.byte 	$36,$11
+	.byte 	$11,$11
+	.word  	TED1	   	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	TED2   	;DODGEING  
+	.word  	-1
+	.byte 	$25,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	TEDS   	;SHOOTING
+	.word  	TEDSHOOT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+TEDSHOOT:
+	.byte 	SETMOM,2,0
+	.byte 	SPAWN,48,17,9,0		;SHOOT STUFF
+	.byte 	DELAY,10
+	.byte 	ACTIVATE,EWALK
+DRUGBOSS:
+	.word    	BIGWZFLY		;WAKEUP
+	.word  	SORWAKE2
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BIGWIZ3  	;HURT BY ATTACK
+	.word  	SORHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BIGWIZ3		;FALLING
+	.word  	SORFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BIGWZFLY 	;JUMPING
+	.word  	SORJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BIGWIZ3     	;ATTACKING
+	.word  	SORSHOOT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	SORHIDE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	BIGWIZ3  	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	SORSTAND
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	BIGWZFLY 	;WALKING
+	.word  	SORWLK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BIGWZFLY 	;NEAR ATTACK
+	.word  	-1 
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BIGWZFLY  	;MIDDLE ATTACK
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+NINJA:
+	.word      NINJA7		;WAKEUP
+	.word  	NJWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	NINJA3  	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	NINJA3		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	NINJA3		;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	NINJA7   	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	NINWLK  	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	NINATAK 	;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,2
+	.byte 	$25,$11
+	.byte 	$11,$01
+	.word  	NINATAK         ;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,2
+	.byte 	$25,$02
+	.byte 	$11,$01
+	.word  	NINATAK		;FAR ATTACK
+	.word  	ENMIDDLE   
+	.byte 	$40,2
+	.byte 	$25,$01
+	.byte 	$11,$01
+	.word  	NINJA2		;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,0
+	.byte 	$25,$11
+	.byte 	$11,$11
+	.word  	NINJA1    	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	NINWLK    	;DODGING
+	.word  	NINDODGE		
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	NINATAK    	;SHOOTING
+	.word  	NINTHROW		
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ARROWMAN:
+	.word      ARROW1		;WAKEUP
+	.word  	ARRWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARROW4  	;HURT BY ATTACK
+	.word  	ARRHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+
+SHOOTARR:
+	.word  	ARROWGO
+	.word      ARRFLING 	;MAN SHOOTING ARROW
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ARRSHT:
+	.word  	ARROW
+	.word  	ARRMOVE	 	;ARROW BEING SHOT
+	.byte 	0,0
+	.byte 	$20,$11
+	.byte 	$11,$0F
+
+ARRWAKE:
+	.byte 	GRAVITY,0
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS
+	.byte 	ENABLE,HURTING
+ARR5: 	.byte 	INSTRUCTIONS,5
+	.byte 	SETMOM,2,0	;KEEP FACING HERO
+	.byte 	RANGE
+	.word  	ARR7
+	.byte 	32,32
+	.byte 	RANGE
+	.word  	ARR5
+	.byte 	48,-1
+	.byte 	RANGE	       	;GO SHOOT IF HERO IS IN RANGE
+	.word  	ARR10
+	.byte 	212,-1
+	.byte 	SKIP
+	.word  	ARR5
+ARR7:
+	.byte 	DIE,0		;GO AWAY IF HERO GETS TOO CLOSE
+
+ARR10:	.byte 	FETCHREG,YDIR
+	.byte 	NOTEQUAL
+	.word  	ARR5
+	.word  	0
+	.byte 	SEQUENCE
+	.word  	SHOOTARR
+
+ARRFLING:
+	.byte 	DELAY,10
+	.byte 	SPAWN,35,20,12,0
+	.byte 	FETCHREG,RANDOM
+	.byte 	LIMIT
+	.word  	20
+	.byte 	DELAY,REGISTER
+	.byte 	ACTIVATE
+	.byte 	EWAKE
+
+
+ARRHURT:
+	.byte 	DAMAGE
+	.byte 	ASSESS
+	.word  	ARR20
+	.byte 	0
+	.byte 	DELAY,10
+	.byte 	ACTIVATE,EWAKE
+
+ARR20:	.byte 	DIE,1			
+
+ARRMOVE:
+	.byte 	INSTRUCTIONS,$88
+	.byte 	GRAVITY,0
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	SOLIDSTATE,OFF
+	.byte 	MOMLIMIT,80,80
+	.byte 	MOVEIN,48,80
+	.byte 	RANGE
+	.word  	ARMV5
+	.byte 	96,-1
+      	.byte 	MOVEIN,48,-1
+ARMV5:	.byte 	UNLINK
+ARMV10:
+	.byte 	REARM
+	.byte 	IFXEDGE
+	.word  	ARMV20
+	.byte 	16
+	.byte 	ATTACKED
+	.word  	ARMV20
+	.byte 	YVISUAL
+	.word  	ARMV10
+	.byte 	192
+ARMV20:	.byte 	DIE,0
+ROCKFALL:
+	.word  	BRIKFALL
+	.word  	FALLROCK
+	.byte 	0,0
+	.byte 	0,$05
+	.byte 	0,0
+SMALLROCK:
+	.word  	BRIKSMAL
+	.word  	FALLSMALL
+	.byte 	0,0
+	.byte 	0,$01
+	.byte 	0,0
+			  
+GOOPY:
+	.word  	GOOPS	 	;WAKE UP
+	.word  	GOOPUP
+	.byte 	0,0
+	.byte 	$60,$12
+	.byte 	$62,$00
+	.word  	-1	 	;HURT
+	.word  	GOO7
+	.byte 	0,0
+	.byte 	$60,$12
+	.byte 	$62,$00
+
+GOOPUP:	.byte 	GRAVITY,8
+	.byte 	MOMLIMIT,-1,120
+	.byte 	BOUNCE,200
+	.byte 	IDENTIFY
+	.word  	ENEMY
+	.byte 	ENABLE,HURTING
+GOO5: 	.byte 	INSTRUCTIONS,6 
+	.byte 	REARM
+	.byte 	SETMOM,0,-120
+	.byte 	DELAY,20
+GOO6: 	.byte 	REARM
+	.byte 	STANDING
+	.word  	GOO5
+	.byte 	SKIP
+	.word  	GOO6
+
+GOO7:	.byte 	RANDOM
+	.word  	GOO8
+	.byte 	160
+	.byte 	LAUNCH,54,0,24,0	   	;LAUNCH FORK SOMETIMES
+	.byte 	SKIP
+	.word  	GOO30
+GOO8:	.byte 	RANDOM
+	.word  	GOO10	
+	.byte 	160
+	.byte 	LAUNCH,12,0,24,0		;LAUNCH DYNAMITES
+	.byte 	SKIP
+	.word  	GOO30
+GOO10:	.byte 	RANDOM
+	.word  	GOO20
+	.byte 	90
+	.byte 	LAUNCH,21,0,0,0	  	;LAUNCH EAGLE SOMETIMES
+	.byte 	LAUNCH,21,0,32,0	   
+	.byte 	SKIP
+	.word  	GOO30
+GOO20:	.byte 	LAUNCH,11,0,24,0      	;LAUNCH BOOMERRANGS	
+GOO30:	.byte 	LOWNOISE
+	.word  	POOF
+	.byte 	DIE,1	 
+FORKSHOOT:
+	.word  	FORK
+	.word  	FORKWAKE
+	.byte 	0,0
+	.byte 	$30,$22	
+	.byte 	$11,$0F
+FOREXPL:
+	.word  	FORBLOW
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0	
+	.byte 	0,0
+FORKWAKE:
+	.byte 	SEQUENCE
+	.word  	DUMB			
+	.byte 	GRAVITY,0
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS
+	.byte 	IFPARAM	  		;SEE IF ROCKET INSTEAD OF FORK
+	.word  	FOR20
+	.byte 	1
+	.byte 	ANIMATION,EWAKE,2
+	.byte 	MOMLIMIT,96,-1
+	.byte 	SETMOM,96,0
+FOR10: 
+	.byte 	REARM
+	.byte 	NOISE
+	.word  	ROCKETNOISE
+	.byte 	ATTACKED
+	.word  	FOR30
+	.byte 	IFXEDGE
+	.word  	FORDIE
+	.byte 	16
+	.byte 	SKIP
+	.word  	FOR10
+
+FOR20:	.byte 	INSTRUCTIONS,4
+	.byte 	FETCHREG,RANDOM		;ROCKET CODE
+	.byte 	LIMIT
+	.word  	152
+	.byte 	GOTO,-1,REGISTER
+	.byte 	ANIMATION,EWAKE,2
+	.byte 	MOMLIMIT,96,-1
+	.byte 	SETMOM,96,0
+	.byte 	DELAY,2
+	.byte 	SKIP	
+	.word  	FOR10
+
+FOR30: 	.byte 	NOISE
+	.word  	BOMBSOUND	
+	.byte 	SEQUENCE
+	.word  	FOREXPL
+	.byte 	DELAY,5
+FORDIE:	.byte 	DIE,1	
+
+DUMBLAUNCH:
+	.word  	DUMMY
+	.word  	DUMBCODE
+	.byte 	0,-1
+	.byte 	0,0	
+	.byte 	0,0
+
+DUMBCODE:
+	.byte 	GRAVITY,0
+	.byte 	HALFFREQ,ON
+
+	.byte 	LOAD,3
+	.byte 	SETREG,40,0   		;SET FIRST DELAY TIME  
+DUM5:	.byte 	RANDOM
+	.word  	DUM10
+	.byte 	128
+	.byte 	CREATE,54,0,0,1		;LAUNCH FORK ON LEFT SIDE
+	.byte 	SKIP
+	.word  	DUM20	
+DUM10:	.byte 	CREATE,54,250,0,1	;LAUNCH ON RIGHT SIDE
+DUM20:
+	.byte 	EQUAL
+	.word  	DUM25
+	.word  	6 
+	.byte 	ADD
+	.word  	-2
+DUM25:	.byte 	DELAY,REGISTER
+	.byte 	STORE,3
+	.byte 	SKIP
+	.word  	DUM5
+
+DUM30: 	.byte 	SKIP	
+	.word  	DUM30
+
+			
+RIFLEMAN:
+	.word      RFLMAN1		;WAKEUP
+	.word  	WHITEWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	RFLMAN4  	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	RFLMAN1		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	RFLMAN4		;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	RFLMAN1   	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	RFLWALK  	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	RFLSWING 	;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,1
+	.byte 	$66,$11
+	.byte 	$11,$01
+	.word  	RFLSWING         ;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,1
+	.byte 	$26,$02
+	.byte 	$11,$01
+	.word  	RFLSWING  	;FAR ATTACK
+	.word  	ENMIDDLE  
+	.byte 	$40,1
+	.byte 	$26,$01
+	.byte 	$11,$01
+	.word  	RFLWALK		;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,0
+	.byte 	$36,$11
+	.byte 	$11,$11
+	.word  	RFLMAN1   	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	RFLMAN4   	;DODGEING  
+	.word  	-1
+	.byte 	$25,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	RFLSHOOT   	;SHOOTING
+	.word  	LITTHROW
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+MANARROW:
+	.word      ARRWIN1		;WAKEUP
+	.word  	WHITEWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARRWIN5  	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARRWIN4		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARRWIN4		;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	ARRWIN1   	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	ARRWALK  	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARRWALK 	;NEAR ATTACK
+	.word  	ENWALK 
+	.byte 	$40,0
+	.byte 	$66,$11
+	.byte 	$11,$01
+	.word  	ARRATAK         ;MIDDLE ATTACK
+	.word  	ARRTHROW
+	.byte 	$23,0
+	.byte 	$26,$02
+	.byte 	$11,$01
+	.word  	ARRATAK  	;FAR ATTACK
+	.word  	ARRTHROW  
+	.byte 	$23,0
+	.byte 	$26,$01
+	.byte 	$11,$01
+	.word  	ARRWALK		;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,-1
+	.byte 	$36,$11
+	.byte 	$11,$11
+	.word  	ARRWIN5   	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARRWIN2   	;DODGEING  
+	.word  	-1
+	.byte 	$25,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	ARRATAK  	;SHOOTING
+	.word  	ARRTHROW
+	.byte 	$40,0
+	.byte 	0,0
+	.byte 	0,0
+BIGARROW:
+	.word  	ARROWA
+	.word  	SHURIWAKE	 	;ARROW BEING SHOT
+	.byte 	0,0
+	.byte 	$20,$11
+	.byte 	$11,$0F
+MONGO:
+	.word      MONG2	  	;WAKEUP
+	.word  	MOWAKE2
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	MONG4	  	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	MONG1		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	MONG1		;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1	     	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	MONG6		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	MONG2   	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	MONGWLK  	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	MONGHIT 	;NEAR ATTACK
+	.word  	MONGATTACK 
+	.byte 	$40,2
+	.byte 	$88,$14
+	.byte 	$11,$01
+	.word  	MONGHIT         ;MIDDLE ATTACK
+	.word  	MONGATTACK
+	.byte 	$40,2
+	.byte 	$88,$14
+	.byte 	$11,$01
+	.word  	MONGHIT  	;FAR ATTACK
+	.word  	MONGATTACK   
+	.byte 	$40,2
+	.byte 	$88,$14
+	.byte 	$11,$01
+	.word  	MONGWLK		;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,0 
+	.byte 	$88,$14
+	.byte 	$11,$01
+	.word  	MONG2   	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+JUMPY:
+	.word    	JUMPKN3   	;WAKEUP
+	.word  	VALKWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	JUMPKN6		;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	JUMPKN4		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-2		;SET TO -2 TO ARM HIM WHILE JUMPING.
+	.byte 	$45,$01
+	.byte 	$11,$0F
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	KNIFATAK	;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	JUMPKN3 	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	KNIFWLK		;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	KNIFATAK	;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,1
+	.byte 	$05,$11
+	.byte 	$11,$01
+	.word  	KNIFATAK	;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,1
+	.byte 	$05,$02
+	.byte 	$11,$01
+	.word  	KNIFATAK	;FAR ATTACK
+	.word  	ENFAR   
+	.byte 	$40,1
+	.byte 	$45,$01
+	.byte 	$11,$01
+	.word  	KNIFATAK	;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,0
+	.byte 	$45,$11
+	.byte 	$11,$11
+	.word  	JUMPKN4     	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+SAMURAI:
+	.word    	SWRDMAN1		;WAKEUP
+	.word  	SAMWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SWRDHURT 	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SWRDMAN4 	;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SWRDMAN1 	;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	SWRDMAN1 	;STANDING.  USED ONLY WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	SWRDWALK 	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	SWRDATAK 	;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,1
+	.byte 	$56,$11
+	.byte 	$11,$01
+	.word  	SWRDATAK  	;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,1
+	.byte 	$56,$02
+	.byte 	$11,$01
+	.word  	SWRDATAK  	;FAR ATTACK
+	.word  	ENFAR   
+	.byte 	$40,1
+	.byte 	$56,$01
+	.byte 	$11,$01
+	.word  	SWRDATAK   	;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,1
+	.byte 	$56,$11
+	.byte 	$11,$11
+	.word  	SWRDMAN1    	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+EAGLEBIRD:
+	.word    	EAGFLAP		;WAKEUP
+	.word  	FAIRYWAKE
+	.byte 	0,0
+	.byte 	$30,$12	
+	.byte 	$11,$0F
+	.word  	EAGATTAK 	;HURT BY ATTACK
+	.word  	ENDEAD
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+BIRDFAKE:
+	.word    	BRD1 	;WAKEUP
+	.word  	BDWAKE 
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BRD5   	;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BRD1	;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BRD1 	;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	BRD1 	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	BRDWALK 	;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	BRDATAK 	;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,1
+	.byte 	$24,$11
+	.byte 	$11,$01
+	.word  	BRDATAK 	;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,1
+	.byte 	$24,$02
+	.byte 	$11,$01
+	.word  	BRDATAK 	;FAR ATTACK
+	.word  	ENFAR
+	.byte 	$40,1
+	.byte 	$25,$11
+	.byte 	$11,$01
+	.word  	BRDWALK 	;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,1
+	.byte 	$24,$11
+	.byte 	$11,$01
+	.word  	BRD4    	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+GREENTHUG:
+	.word    	GRNCAPE1	;WAKEUP
+	.word  	TGWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	GRNHURT		;HURT BY ATTACK
+	.word  	ENHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	GRNCAPE4		;FALLING
+	.word  	ENFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	GRNCAPE1	;JUMPING
+	.word  	ENJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1      	;ATTACKING
+	.word  	ENATTACK
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	GRNCAPE1	;STANDING.  USED ONLY ON WHEN DELAYING
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	GRNWLK		;WALKING
+	.word  	ENWALK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	GRNKICK		;NEAR ATTACK
+	.word  	ENNEAR 
+	.byte 	$40,1
+	.byte 	$34,$11
+	.byte 	$11,$01
+	.word  	GRNKICK		;MIDDLE ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,1
+	.byte 	$34,$02
+	.byte 	$11,$01
+	.word  	GRNKICK		;FAR ATTACK
+	.word  	ENMIDDLE
+	.byte 	$40,2
+	.byte 	$36,$01
+	.byte 	$11,$01
+	.word  	GRNKICK		;CHARGE
+	.word  	ENCHARGE
+	.byte 	$40,1
+	.byte 	$28,$11
+	.byte 	$11,$11
+	.word  	GRNCAPE1    	;POSEING.  USED PRIOR TO AN ATTACK.
+	.word  	ENPOSE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+WIZZARD:
+	.word    	WIZFLY		;WAKEUP
+	.word  	SORWAKE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	WIZFLY	 	;HURT BY ATTACK
+	.word  	SORHURT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	WIZFLY		;FALLING
+	.word  	SORFALL
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;WORLD COMMAND
+	.word  	-1
+	.byte 	$13,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	WIZFLY		;JUMPING
+	.word  	SORJUMP
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	WIZFLY     	;ATTACKING (SHOOTING)
+	.word  	SORSHOOT
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;DUCKING.  USED TO HIDE IN INVISIBLE MODE.
+	.word  	SORHIDE
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+ 	.word    	WIZFLY		;STANDING.  
+	.word  	SORSTAND
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	WIZFLY	 	;WALKING
+	.word  	SORWLK
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word   	WIZFLY   	;FLOATING SORCERER (ENEAR)
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	WIZFLY		;DEAD (EMIDDLE)
+	.word  	-1
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+SPIN:
+	.word  	DAGSPIN
+	.word  	SHURIWAKE
+	.byte 	0,0
+	.byte 	$30,$12	
+	.byte 	$11,$0F
+BOMBER:
+	.word  	BOMB1		;NINJA'S BOMB
+	.word  	BOMBWAKE
+	.byte 	0,-1,0,0,0,0
+FIRE:
+	.word  	SHOOT1
+	.word  	SHURIWAKE
+	.byte 	0,0
+	.byte 	$30,$12
+	.byte 	$11,$0F
+
+GATEKEY:
+	.word  	KEYGATE		;WAKE UP
+	.word  	BARGATE
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1  		;HURT
+	.word  	BRG10
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+BARGATE:		       	;TO SEE IF KEY IS BEING USED
+	.byte 	GRAVITY,0
+	.byte 	IDENTIFY
+	.word  	SUPPLY
+	.byte 	ENABLE,HURTING
+BRG5:	.byte 	SKIP
+	.word  	BRG5
+BRG10:	.byte 	ATTACK
+	.word  	BRG20
+	.byte 	17
+	.byte 	ACTIVATE,EWAKE
+BRG20: 	.byte 	NOISE
+	.word  	DOOROPEN
+ 	.byte 	DIE,1		
+MANPRIZE:
+	.word    	FREEMAN		;WAKEUP
+	.word  	GIVEMAN
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+BOOMMOVE:
+	.word  	BOOMTHRO
+	.word  	BOOMWAKE
+	.byte 	0,-2
+	.byte 	$20,$17
+	.byte 	$11,$0F
+
+BOOMWAKE:
+	.byte 	INSTRUCTIONS,8
+	.byte 	TARGET
+	.word  	ALL^HERO0    
+	.byte 	SOLIDSTATE,OFF
+    	.byte 	GRAVITY,0
+	.byte 	MOMLIMIT,96,64
+	.byte 	MOVEIN,64,-1 	
+	.byte 	SETMOM,NOCHANGE,0
+	.byte 	UNLINK
+	.byte 	FACE,TRAVELING|DOWN 
+	.byte 	NOISE
+	.word  	SHURISND
+BMO10:	.byte 	IFXEDGE	      	;WHEN FIRST THROWN, WE JUST HURT ENEMIES
+	.word  	BMO20		;UNTIL WE REACH A SCREEN SIDE.
+	.byte 	32
+	.byte 	SKIP
+	.word  	BMO10
+
+BMO20:	.byte 	INSTRUCTIONS,5
+	.byte 	FETCHREG,XMOM	;TIME TO REVERSE.  GET CURRENT MOMENTUM
+	.byte 	COMPARE
+	.word  	BMO30
+	.word  	$80		;SEE IF NEGATIVE MOMENTUM RIGHT NOW
+	.byte 	SETREG
+	.word  	-12		;IF PLUS NOW, USE MINUS TO REVERSE
+	.byte 	SKIP
+	.word  	BMO35
+BMO30:	.byte 	SETREG		;IF NEGATIVE NOW, USE PLUS TO REVERSE
+	.word  	12
+
+BMO35: 	.byte 	MOVEIN,-32,-8	;CANCEL SOME MOMENTUM INITIALLY
+	.byte 	NOISE
+	.word  	SHURISND
+BMO40: 	.byte 	INSTRUCTIONS,3
+	.byte 	TARGET		;SET UP TO SEE IF HERO CAUGHT THE BOOMERANG
+	.word  	HERO0
+	.byte 	DISTANCE
+	.word  	BMO70		;GIVE HIM BACK THE BOOMERANG IF HE TOUCHES IT
+	.byte 	20,16
+	.byte 	TARGET
+	.word  	ALL^HERO0	;GO BACK TO HURTING ENEMIES
+
+	.byte 	INSTRUCTIONS,5
+	.byte 	SPEED
+	.word  	BMO60
+	.byte 	64,-1
+	.byte 	SETMOM,-1,0	;WHEN FULL SPEED, GO STRAIGHT ON Y AXIS
+	.byte 	IFXEDGE	      	;
+	.word  	SAFEDIE		;UNTIL WE REACH A SCREEN SIDE.
+	.byte 	16
+	.byte 	SKIP
+	.word  	BMO40
+
+BMO60:	.byte 	INSTRUCTIONS,3
+	.byte 	REGMOM,REGISTER,-1	;REVERSE ON X AXIS TILL GOING 64.
+	.byte 	SKIP
+	.word  	BMO40
+
+BMO70:	.byte 	INSTRUCTIONS,2
+	.byte 	TARGET
+	.word  	ALL^HERO0
+	.byte 	SKIP
+	.word  	GOTBOOM
+
+MAGICPRIZE:
+	.word    	TNT2			;WAKEUP
+	.word  	GIVEMAGIC
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+LOTSMAGIC:
+	.word    	BOX			;WAKEUP
+	.word  	GIVELOTS
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+
+;WHEN YOU LAUNCH A TORCH, IT ADDS PARAM2 TO THE TOTAL TORCH TIME.
+;IF ANOTHER TORCH IS ALREADY ACTIVE IT THEN DIES.  OTHERWISE IT
+;LIGHTS THE ROOM AND COUNTS DOWN THE TIME.  WHEN THE TIME IS DONE
+;IT DARKENS THE ROOM AND DIES.  OF COURSE IF ITS NOT A DARK ROOM IT
+;JUST COUNTS THE TIME.
+
+;SOMETIMES YOU MIGHT WANT TO RELIGHT THE ROOM (FOR INSTANCE, AFTER
+;A STATUS MENU).  USE HURT:
+;	.byte 	HURT,0,ID
+;	.word  	FIREDUMMY
+
+TORCHFIRE:
+	.word  	DUMMY 		;WAKE UP
+	.word  	TORCHLIT
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word  	-1		;HURT
+	.word  	TRC30
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+TORCHLIT:
+	.byte 	INSTRUCTIONS,7
+	.byte 	GRAVITY,0
+	.byte 	FETCHREG,PARAM2
+	.byte 	ADDDATA,12
+	.byte 	STORE,12  
+	.byte 	ACTIVE	
+	.word  	SAFEDIE
+	.byte 	ID
+	.word  	FIREDUMMY
+TRC30:	.byte 	ENABLE,HURTING
+	.byte 	FETCHREG,WORLD	
+	.byte 	CASE 		;LIST OF DARK ROOMS	
+	.word  	PAL10,83		
+	.word  	PAL20,4		
+	.word  	PAL20,24		
+	.word  	PAL30,13		
+	.word  	PAL30,33		
+	.word  	PAL30,50		
+	.word  	PAL30,66		
+	.word  	PAL10,64		
+	.word  	PAL10,86		
+	.word  	PAL10,87		
+	.word  	PAL40,8		
+	.word  	PAL40,46		
+	.word  	PAL50,18		
+	.word  	PAL40,28		
+	.word  	PAL40,63		
+	.word  	PAL50,38		
+	.word  	PAL50,71		
+	.word  	PAL50,55		
+	.word  	PAL50,40		
+	.word  	PAL50,57		
+	.word  	PAL50,20		
+	.word  	PAL50,73		
+	.word  	PAL60,19		
+	.word  	PAL60,39		
+	.word  	PAL60,15		
+	.word  	PAL60,35      
+	.word  	0		
+	.byte 	BPALETTE
+	.word  	-1
+
+TRC21:	.byte 	WRITEVID
+	.word  	TTIME
+	.byte 	3,1,STATVID,5
+
+TRC20:	.byte 	DELAY,20
+	.byte 	LOAD,12
+	.byte 	EQUAL	 	
+	.word  	TRC10
+	.word  	0	
+	.byte 	ADD
+	.word  	-1
+	.byte 	SHOWREG,3,6,STATVID
+	.byte 	STORE,12
+	.byte 	SKIP
+	.word  	TRC20
+
+TRC10:	.byte 	WRITEVID
+	.word  	TIMEKILL
+	.byte 	3,1,STATVID,10
+	.byte 	BPALETTE
+	.word  	-1   
+	.byte 	SPALETTE
+	.word  	-1	 
+	.byte   	DIE,0
+
+PAL10:	.byte 	BPALETTE
+	.word  	WINDPAL	
+	.byte 	SPALETTE
+	.word  	WINDSPAL
+	.byte 	SKIP
+	.word  	TRC21
+PAL20:	.byte 	BPALETTE
+	.word  	CPAL1 
+	.byte 	SPALETTE
+	.word  	CITYSPAL	
+	.byte 	SKIP
+	.word  	TRC21
+PAL30:	.byte 	BPALETTE
+	.word  	DUPAL1	
+	.byte 	SPALETTE
+	.word  	DUNGSPAL
+	.byte 	SKIP
+	.word  	TRC21
+PAL40:	.byte 	BPALETTE
+	.word  	JPAL1	
+	.byte 	SPALETTE
+	.word  	JUNGSPAL
+	.byte 	SKIP
+	.word  	TRC21
+PAL50:	.byte 	BPALETTE
+	.word  	TPAL1	
+	.byte 	SPALETTE
+	.word  	TEMPSPAL
+	.byte 	SKIP
+	.word  	TRC21
+PAL60:	.byte 	BPALETTE
+	.word  	JPAL1	
+	.byte 	SPALETTE
+	.word  	PYRSPAL
+	.byte 	SKIP
+	.word  	TRC21
+TTIME:
+	.byte 	$1D,$18,$1B,$0C,$11     
+	
+TIMEKILL:.byte 	$41,$41,$41,$41,$41,$41,$41,$41,$41,$41	      
+	
+MAGICTHROW:
+	.word    	HTNTS			;WAKEUP FOR THROWN DYNAMITE
+	.word  	MRDYNAMITE
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	
+MRDYNAMITE:
+	.byte 	INSTRUCTIONS,$8A
+	.byte 	MOMLIMIT,64,127
+	.byte 	BOUNCE,200
+	.byte 	GRAVITY,10
+	.byte 	SOLIDSTATE,OFF
+TMG3:	.byte 	MOVEIN,24,-32
+	.byte 	IFPARAM
+	.word  	TMG5
+	.byte 	0
+      	.byte 	MOVEIN,24,-1
+	.byte 	IFPARAM
+	.word  	TMG5
+	.byte 	1
+	.byte  	SETMOM,0,-1
+TMG5:	.byte 	UNLINK 
+TMG6:	.byte 	YVISUAL
+	.word  	TMG10
+	.byte 	10
+	.byte 	SPEED
+	.word  	TMG10
+	.byte 	-1,16
+	.byte 	SKIP
+	.word  	TMG6
+
+TMG10:	.byte 	SOLIDSTATE,SAFE 	
+	.byte 	DELAY,20
+	.byte 	NOISE
+	.word  	THUNDER		;MAKE THE THUNDER NOISE
+	.byte 	PALCLR,0,$30	;SET BACKGROUND TO WHITE
+	.byte 	SEQUENCE
+	.word  	BOMBLAST
+	.byte 	DELAY,2
+	.byte 	PALCLR,0,$0F	;SET BACKGROUND TO BLACK
+	.byte 	DELAY,2
+	.byte 	PALCLR,0,$30	;SET BACKGROUND TO WHITE
+	.byte 	DELAY,2
+	.byte 	ACTIVE
+	.word  	TMG12
+	.byte 	ID   
+	.word  	FIREDUMMY	
+	.byte 	BPALETTE
+	.word  	-1
+TMG11:	.byte 	CREATE,STATGUYID,255,192,0 ;LAUNCH THE STATUS BAR UPDATER
+	.byte 	DIE,0
+TMG12:	.byte 	HURT,0,ID
+	.word  	FIREDUMMY
+	.byte 	SKIP
+	.word  	TMG11
+HEALTHPRIZE:
+	.word    	HART		 	;WAKEUP
+	.word  	GIVEHEALTH
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+	
+WORLDWAKER:
+	.word    	DUMMY		;WORLD MISC STUFF WAKEUP
+	.word  	WWAKEUP
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+BOOMERPRIZE:
+	.word    	BOOMER1			;WAKEUP
+	.word  	GIVEBOOM
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+TORCHPRIZE:
+	.word    	TORCH			;WAKEUP
+	.word  	GIVETORCH
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+BRASSPRIZE:
+	.word    	BRASSKNU			;WAKEUP
+	.word  	GIVEBRASS
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+FOODPRIZE:
+	.word    	FOOD			;WAKEUP
+	.word  	GIVEFOOD
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+SUCTPRIZE:
+	.word    	SUCTION			;WAKEUP
+	.word  	GIVESUCT
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+KEYPRIZE:
+	.word    	KEY			;WAKEUP
+	.word  	GIVEKEY
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+ROCKGATE:
+	.word    	SPGATE			;WAKEUP
+	.word  	BLOWGATE
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+	.word    	-1		;HURTING
+	.word  	BG10
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+BLOWGATE:
+	.byte 	GRAVITY,0
+	.byte 	ENABLE,HURTING
+	.byte 	HALFFREQ,ON
+BG5: 	.byte 	SKIP
+	.word  	BG5
+
+BG10:	.byte 	ATTACKER
+	.word  	BG11
+	.byte 	8
+	.byte 	ACTIVATE,EWAKE
+BG11:	.byte 	DAMAGE
+	.byte 	ASSESS
+	.word  	BG12
+	.byte 	0	
+	.byte 	ACTIVATE,EWAKE
+BG12:	.byte 	NOISE
+	.word  	DOOROPEN 
+	.byte 	DIE,1	
+
+STATSELECT:
+	.word    	SELECT1		;WAKEUP
+	.word  	GETICON
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+MAPTHING:
+	.word  	MAPICON
+	.word  	GIVEMAP
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+DRIPPY:
+	.word  	DRIP1
+	.word  	DRIPMOVE
+	.byte 	0,0
+	.byte 	$20,$02
+	.byte 	$11,$0F
+DRIPDIE:
+	.word  	DRIP2
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+DRIPMOVE:
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	REARM
+DRP4:	.byte 	RANDOM	 		;EITHER HIT TOP OR BOTTOM LEDGE 
+	.word  	DRP5
+	.byte 	127
+	.byte 	SOLIDSTATE,OFF		;MAKE IT HIT BOTTOM LEDGE
+	.byte 	DELAY,15
+	.byte 	SOLIDSTATE,ON	
+DRP5:  	.byte 	REARM
+	.byte 	STANDING		;MAKE IT HIT TOP LEDGE
+	.word  	DRP10
+	.byte 	SKIP
+	.word  	DRP5 
+DRP10:	.byte 	NOISE
+	.word  	WATERDROP
+	.byte 	SEQUENCE 
+	.word  	DRIPDIE
+	.byte 	DELAY,2
+	.byte 	DIE,0
+
+;********************** PRIZES **********************************
+BOMBLAST:
+	.word  	BOMBEXPL
+	.word  	-1
+	.byte 	0,0
+	.byte 	$20,$44
+	.byte 	$66,$00
+
+
+GIVEMAGIC:	    			;GIVE SINGLE TNT
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	HALFFREQ,ON
+GMA10:	.byte 	DISTANCE
+	.word  	GMA20
+	.byte 	16,4
+	.byte 	SKIP
+	.word  	GMA10
+GMA20:	.byte 	HALFFREQ,OFF
+	.byte 	LOAD,16
+	.byte 	ADD
+	.word  	1
+	.byte 	STORE,16
+	.byte 	SKIP
+	.word  	GOTDONE		
+GIVELOTS:
+	.byte 	SETBEHAVIOR,INTELLIGENT	;USE THIS TO SIGNAL LOTS OF DYNAMITE
+
+GIVEHEALTH:
+GIVE2:	.byte 	TARGET
+	.word  	HERO0
+	.byte 	HALFFREQ,ON
+GHE10:	.byte 	DISTANCE
+	.word  	GHE20
+	.byte 	16,4
+	.byte 	SKIP
+	.word  	GHE10
+GHE20:	.byte 	HALFFREQ,OFF
+	.byte 	INSTRUCTIONS,8
+	.byte 	IFBEHAVIOR
+	.word  	GHE30
+	.byte 	INTELLIGENT
+	.byte 	IFBEHAVIOR
+	.word  	GHE40
+	.byte 	FAST
+	.byte 	IFBEHAVIOR
+	.word  	GHE70
+	.byte 	SHY
+ 	.byte 	IFBEHAVIOR
+	.word  	GHE71
+	.byte 	WEAK
+	.byte 	IFBEHAVIOR
+	.word  	GOTBOOM
+	.byte 	DYING 
+	.byte 	IFBEHAVIOR 
+	.word  	GHE76
+	.byte 	WEAK
+	.byte 	IFBEHAVIOR
+	.word  	GHE73
+	.byte 	MAD
+	.byte 	IFBEHAVIOR
+	.word  	GHE74
+	.byte 	HIJUMPER
+	.byte 	IFBEHAVIOR
+	.word  	GHE75
+	.byte 	OPTION1
+
+GHE25:	.byte 	GETJOYHEALTH,JOY1    		
+	.byte 	ADD,4,0			;ADD 1 HEART (4 HEALTHS)
+	.byte 	SETJOYHEALTH,JOY1
+	.byte 	SKIP
+	.word  	GOTDONE
+
+GHE30:	.byte 	INSTRUCTIONS,4
+	.byte 	LOAD,16
+	.byte 	ADD,10,0		;ADD DYNAMITES
+	.byte 	LIMIT,255,0
+	.byte 	STORE,16
+
+GOTDONE:.byte 	NOISE
+	.word  	GOTPRIZE
+	.byte 	CREATE,STATGUYID,255,192,0 ;LAUNCH THE STATUS BAR UPDATER
+	.byte 	DIE,1
+
+GHE40:	.byte 	ADDHEROS,JOY1,1		;GIVE 1 HERO
+	.byte 	SKIP
+	.word  	GOTDONE
+
+GIVEMAP:
+	.byte 	SETBEHAVIOR,SHY
+	.byte 	SKIP
+	.word  	GIVE2
+GHE70:	.byte 	INSTRUCTIONS,7
+	.byte 	LOAD,11
+	.byte 	ADD,1,0
+	.byte 	STORE,11
+	.byte 	SKIP
+	.word  	GOTDONE
+GIVEBOOM:
+	.byte 	SETBEHAVIOR,DYING
+	.byte 	SKIP
+	.word  	GIVE2
+
+;SHARED ENTRY POINT TO GIVE 1 BOOMERANG TO HERO AND DIE
+
+GOTBOOM:
+	.byte 	INSTRUCTIONS,7
+	.byte 	LOAD,5
+	.byte 	ADD,1,0
+	.byte 	STORE,5
+	.byte 	SKIP
+	.word  	GOTDONE
+GHE71:	.byte      INSTRUCTIONS,7
+	.byte 	LOAD,4
+	.byte 	ADD,1,0
+	.byte 	STORE,4
+	.byte 	SKIP
+	.word  	GOTDONE
+GIVEFOOD:
+	.byte 	SETBEHAVIOR,MAD
+	.byte 	SKIP
+	.word  	GIVE2
+GHE73:	.byte      INSTRUCTIONS,7
+	.byte 	LOAD,6
+	.byte 	ADD,1,0
+	.byte 	STORE,6
+	.byte 	SKIP
+	.word  	GOTDONE
+GIVEBRASS:
+	.byte 	SETBEHAVIOR,OPTION1	;WE HAD TO SHARE OPTION 1.
+GIVESUCT:
+	.byte 	SETBEHAVIOR,HIJUMPER
+	.byte 	SKIP
+	.word  	GIVE2
+GHE74: 	.byte 	IFBEHAVIOR		;CATCH THE EVIL SHARED OPTION1
+	.word  	GHE74A
+	.byte 	OPTION1
+	.byte      INSTRUCTIONS,7
+	.byte 	LOAD,7
+	.byte 	ADD,1,0
+	.byte 	STORE,7
+	.byte 	SKIP
+	.word  	GOTDONE
+GHE74A:	.byte 	INSTRUCTIONS,7
+	.byte 	LOAD,9
+	.byte 	ADD,1,0
+	.byte 	STORE,9
+	.byte 	SKIP
+	.word  	GOTDONE
+
+GIVEKEY:
+	.byte 	SETBEHAVIOR,OPTION1
+	.byte 	SKIP
+	.word  	GIVE2
+GHE75:	.byte      INSTRUCTIONS,7
+	.byte 	LOAD,8
+	.byte 	ADD,1,0
+	.byte 	STORE,8
+	.byte 	SKIP
+	.word  	GOTDONE
+GIVETORCH:
+	.byte 	GRAVITY,0	
+	.byte 	SETBEHAVIOR,WEAK
+	.byte 	SKIP
+	.word  	GIVE2
+GHE76:	.byte 	INSTRUCTIONS,7
+	.byte 	LOAD,4
+	.byte 	ADD,1,0
+	.byte 	STORE,4
+	.byte 	SKIP
+	.word  	GOTDONE
+
+GIVEMAN:
+	.byte 	SETBEHAVIOR,FAST	;USE THIS TO SIGNAL GIVING A MAN
+	.byte 	SKIP
+	.word  	GIVE2			;LET THIS BOTTLE HAVE GRAVITY
+
+GETICON:
+	.byte 	GRAVITY,0
+
+LSM10:	.byte 	SETREG
+	.word  	$1800			;START AT X=0, Y=1 IN BACKGROUND
+	.byte 	STORE,STATE		;SET TEST POINT
+LSM20: 	.byte 	INSTRUCTIONS,11
+
+	.byte 	LOAD,10			;POSITION THE SELECT CURSOR
+	.byte 	LIMIT,7,0
+	.byte 	REGINDEX
+	.word  	XLOCS
+	.byte 	GOTO,REGISTER,1
+
+	.byte 	LOAD,STATE
+	.byte 	READCHAR		;SEE WHAT'S THERE
+	.byte 	CASE
+	.word  	LSM100,$A1 		
+	.word  	LSM200,$26
+	.word  	LSM300,$6D 		
+	.word  	LSM400,$4F 		
+	.word  	0
+LSM25: 	.byte 	INSTRUCTIONS,5
+	.byte 	LOAD,STATE		;GET BACK WHERE WE WERE SCANNING
+	.byte 	ADD
+	.word  	$08			;SKIP 2 COLS TO NEXT CHECK
+	.byte 	STORE,STATE
+	.byte 	ANDREG
+	.word  	$00FF			;SEE IF WRAP ROW TIME
+	.byte 	NOTEQUAL
+	.word  	LSM20
+	.word  	0
+	.byte 	INSTRUCTIONS,4
+	.byte 	LOAD,STATE
+	.byte 	ADD
+	.word  	$0700			;SKIP 1 ROW WHEN CARRY HAPPENS
+	.byte 	STORE,STATE
+	.byte 	COMPARE
+	.word  	LSM10		
+	.word  	$2800			;WRAP WHEN CLOSE TO MIDDLE
+	.byte 	SKIP
+	.word  	LSM20
+
+LSM100:	.byte 	FETCHREG,WORLD	     	;TO LAUNCH DRIPS
+	.byte 	CASE
+	.word  	LSM101,17
+	.word  	LSM101,37
+	.word  	LSM101,54
+	.word  	LSM101,70
+	.word  	0
+	.byte 	SKIP
+	.word  	LSM25
+LSM101:	.byte 	LOAD,STATE
+	.byte 	REGLAUNCH,46,0		 
+	.byte 	SKIP
+	.word  	LSM25
+
+LSM200:	.byte 	FETCHREG,WORLD 		;TO LAUNCH BALLS
+	.byte 	CASE
+	.word  	LSM201,16
+	.word  	LSM201,36
+	.word  	LSM201,53
+	.word  	LSM201,69
+	.word  	0
+	.byte 	SKIP
+	.word  	LSM25
+LSM201:	.byte 	RANDOM	  		;RANDOMLY LAUNCH BALLS
+	.word  	LSM25
+	.byte 	128
+	.byte 	HOWMANY,52     	;IF 2 BALLS ACTIVE,DON'T LAUNCH MORE
+	.byte 	COMPARE
+	.word  	LSM25	
+	.word  	2
+	.byte 	LOAD,STATE
+	.byte 	REGLAUNCH,52,0		 
+	.byte 	SKIP
+	.word  	LSM25
+
+LSM300:	.byte 	FETCHREG,WORLD	     	;TO LAUNCH BOMBS
+	.byte 	CASE
+	.word  	LSM301,7
+	.word  	LSM301,27
+	.word  	LSM301,45
+	.word  	LSM301,62
+	.word  	0
+	.byte 	SKIP
+	.word  	LSM25
+LSM301:	.byte 	RANDOM
+	.word  	LSM25
+	.byte 	200
+	.byte 	LOAD,STATE
+	.byte 	REGLAUNCH,32,2		 
+	.byte 	SKIP
+	.word  	LSM25
+
+LSM400:	.byte 	FETCHREG,WORLD	     	;TO LAUNCH BRIZBIG
+	.byte 	CASE
+	.word  	LSM401,12
+	.word  	LSM401,32
+	.word  	LSM401,49
+	.word  	LSM401,65
+	.word  	0
+	.byte 	SKIP
+	.word  	LSM25
+LSM401:	.byte 	LOAD,STATE
+	.byte 	ADD
+	.word  	$1000
+	.byte 	REGLAUNCH,50,0		 
+	.byte 	SKIP
+	.word  	LSM25
+
+
+XLOCS: 	.byte 	49
+	.byte 	97
+	.byte 	117
+	.byte 	133
+	.byte 	149
+	.byte 	165
+	.byte 	181
+	.byte 	197
+
+;**** KUNG FU (SOLDIER) ENEMY MOVEMENTS ****
+;
+;OPTION1 BIT IN BEHAVIOR MEANS AN ENEMY CAN JUMP DOWN THROUGH SOLIDS TO
+;TRACK YOU.
+;
+;WEAK IS USED TO MAKE A DIFFERENCE BETWEEN DIFFERENT COLORS OF THE SAME
+;ENTITY.
+;
+;SHY MEANS THAT AN ENEMY NEVER ABORTS AN ATTACK HE STARTS.
+;
+;FAST MEANS AN ENEMY CAN SHOOT
+;
+;INTELLIGENT MEANS AN ENEMY CAN DODGE AN ATTACK BY USING HIS ENTRY EDODGE.
+TEDWAKE:
+	.byte 	HOWMANY,60     	;IF 3 TEDS ACTIVE, DON'T LAUNCH MORE
+	.byte 	COMPARE
+	.word  	WHITEWAKE
+	.word  	3
+TED10:	.byte 	LAUNCH,60,0,0,0	 	;LAUNCH MORE TEDS
+	.byte 	SETMOM,64,64
+	.byte 	DELAY,7
+	
+WHITEWAKE:	
+	.byte 	SETREG,5,0
+	.byte 	SETBEHAVIOR,FAST|OPTION1|HIJUMPER 
+	.byte 	SKIP
+	.word  	ENWAKE
+
+SAMWAKE:
+	.byte 	SETREG,10,0
+	.byte 	SETBEHAVIOR,OPTION1
+	.byte 	RANDOM
+	.word  	SM20
+	.byte 	128
+	.byte 	DELAY,20
+	.byte 	CREATE,21,0,0,0 	 	;ANDREW LAUNCHES RANDOM BIRDS
+SM20:	.byte 	RANDOM
+	.word  	SM30
+	.byte 	128
+	.byte 	DELAY,20
+	.byte 	CREATE,21,0,0,0 	 	;ANDREW LAUNCHES RANDOM BIRDS
+SM30:	.byte 	SKIP
+	.word  	ENWAKE
+
+NJWAKE:
+	.byte 	SETBEHAVIOR,OPTION1|HIJUMPER|FAST|INTELLIGENT
+	.byte 	SETREG,9,0
+	.byte 	RANDOM
+	.word  	NJ10	
+	.byte 	128
+	.byte 	LAUNCH,51,0,0,0		;LAUNCH HOLDY SOMETIMES
+NJ10:	.byte 	SKIP
+	.word  	ENWAKE
+
+
+MOWAKE2:
+	.byte 	SETBEHAVIOR,SHY
+	.byte 	SETREG,8,0
+	.byte 	SKIP
+	.word  	DUMBWAKE
+
+KNWAKE:
+	.byte 	SETREG,3,0
+
+DUMBWAKE:
+	.byte 	DELAY,20			;SHOW HIS WAKEUP FOR 1 SECOND.
+	.byte 	SETBEHAVIOR,OPTION1|HIJUMPER	;CAN JUMP DOWN AND HIGH
+	.byte 	TARGET
+	.word  	HERO0|ENEMY   	     ;MONGOLIANS ARE STUPID AND KILL ALL
+	.byte 	SKIP 				
+	.word  	ENW10
+
+BRWAKE:
+ 	.byte 	SETREG,6,0
+NOWAIT:
+	.byte 	SETBEHAVIOR,OPTION1|HIJUMPER
+	.byte 	SKIP
+	.word  	ENWAKE
+
+TGWAKE:
+	.byte 	SETREG,1,0
+	.byte 	SKIP
+	.word  	BRW10
+
+BDWAKE:
+	.byte 	SETREG,4,0
+	.byte 	SKIP
+	.word  	BRW10
+
+VALKWAKE:
+	.byte 	SETREG,0,0
+	.byte 	SKIP
+	.word  	NOWAIT
+
+GNWAKE:
+	.byte 	SETREG,7,0
+
+BRW10:	.byte 	SETBEHAVIOR,OPTION1	;CAN JUMP DOWN 
+HIWAIT:	.byte 	SETBEHAVIOR,HIJUMPER	;CAN JUMP HIGH
+	.byte 	DELAY,20		;SHOW HIS WAKEUP FOR .6 SECOND.
+	.byte 	SKIP
+	.word  	ENWAKE
+
+;ENTITY IS TOO FAR AWAY TO CHARGE OR ATTACK.  CAN WE SHOOT?
+
+TRYSHOOT:
+	.byte 	IFNBEHAVIOR
+	.word  	PICKMOM			;SKIP IF CAN'T SHOOT
+	.byte 	FAST			;FAST MEANS WE CAN SHOOT
+
+	.byte 	RANGE
+	.word  	PICKMOM
+	.byte 	64,-1			;MUST BE FURTHER AWAY THAN 64 TO SHOOT
+
+	.byte 	RANGE
+	.word  	CANSHOOT
+	.byte 	-1,48			;MUST BE WITHIN 48 ON Y LEVEL
+	.byte 	SKIP
+	.word  	PICKMOM
+
+CANSHOOT:
+	.byte 	RANDOM
+	.word  	PICKMOM
+	.byte 	64
+	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL
+	.word  	CSH10
+	.word  	4			
+	.byte 	ACTIVATE,ESHOOT
+
+CSH10:	.byte 	RANDOM
+	.word  	PICKMOM	       		;MAKE WHITEHAT SHOOT LESS OFTEN
+	.byte 	128
+	.byte 	ACTIVATE,ESHOOT
+
+;THIS ATTACK SEQUENCE RANGES THE ENTITY AND PICKS ONE OF THE THREE ATTACKS
+;IF HE'S IN RANGE.  IT ALSO SUPPORTS SPEEDING UP FOR A CHARGE.
+
+ENATTACK:				;ENEMY ATTACKING MOVEMENT LIST
+
+	.byte 	RANGE
+	.word  	EON
+	.byte 	14,15			;NEAR IF WITHIN 14
+	.byte 	RANDOM
+	.word  	EOF			;DO 50/50 ON FAR AND MIDDLE
+	.byte 	128		
+	.byte 	ACTIVATE,EMIDDLE	;OTHERWISE, MIDDLE ATTACK.
+EON:	.byte 	ACTIVATE,ENEAR
+EOF:	.byte 	ACTIVATE,EFAR
+
+ENNEAR:	.byte 	ENABLE,ALL^ATTACKING	;ENABLE ALL BUT ATTACKING.
+	.byte 	SETMOM,1,0		;ZERO OUR MOMENTUM IF CLOSE UP ATTACK
+
+ENN10: 	.byte 	LOWNOISE
+	.word  	LOUDSWISH
+	.byte 	FINISH			
+	.byte 	ATTACKED
+	.word  	ENN15			;IF WE ATTACKED SUCCESSFULLY, RESET MAD	
+	.byte 	ACTIVATE,EWALK		;GO BACK TO THE POSE FOR AN ATTACK.
+
+ENN15:	.byte 	RESETBEHAVIOR,MAD
+	.byte 	ACTIVATE,EWALK
+
+
+ENMIDDLE:
+	.byte 	SETMOM,32,0
+	.byte 	ENABLE,ALL^ATTACKING	
+	.byte 	SETMOM,8,0
+	.byte 	SKIP
+	.word  	ENN10
+	
+ENFAR:	.byte 	REARM
+	.byte 	SETMOM,40,0		;GO IN FAST FOR THIS ONE.
+	.byte 	ENABLE,ALL^ATTACKING	;ENABLE ALL BUT ATTACKING.
+	.byte 	REARM
+	.byte 	SETMOM,8,0
+	.byte 	SKIP
+	.word  	ENN10
+
+ENCHARGE:				;ENEMIES CHARGE.  CALLED FROM WALKING
+	.byte 	SETMOM,48,0
+	.byte 	SETMOM,56,0
+	.byte 	SETMOM,56,0
+	.byte 	SETMOM,1,0
+	.byte 	SKIP
+	.word  	ENN10
+
+;ALL ENTITIES MUST DIE HERE IF THEY ARE TO ADD TO THE SCORE.
+
+ENDEAD:	.byte 	DISABLE,ALL
+	.byte 	LOWNOISE
+	.word  	BUMPSND
+	.byte 	SOLIDSTATE,OFF
+	.byte 	SETMOM,-48,-120		;THROW HIM OFF SCREEN
+	.byte 	GRAVITY,-1
+	.byte 	SETCOUNTER,40		;A BUG GOT ONE STUCK.  MAKE A TIMEOUT TO DIE.
+END10:	.byte 	COUNT
+	.word  	REALDIE
+	.byte 	1
+	.byte 	YVISUAL			;WAIT TILL WE GO OFF SCREEN
+	.word  	END10
+	.byte 	200
+
+REALDIE:.byte 	INSTRUCTIONS,4
+	.byte 	DELAY,7
+ 	.byte 	CREATE,6,124,16,0
+	.byte 	LOWNOISE
+	.word  	DIEPRIZE
+	.byte 	DIE,1			;IF HEALTH GOES TO ZERO, DIE
+
+;THIS ENEMY POSING MODE CAN BE CALLED WHENEVER YOU WANT.  IT MAKES HIM
+;FACE THE HERO AND WAIT A TIME BASED ON BEHAVIOR.  THEN HE WILL
+;ATTACK IF THE HERO IS STILL IN RANGE.  OTHERWISE HE GOES TO WALK MODE.
+
+ENPOSE:	.byte 	INSTRUCTIONS,$86
+	.byte 	SETMOM,1,0	;FACE HERO
+	.byte 	LOAD,30		;USE THIS DELAY IF MELLOW ENTITY
+	.byte 	IFNBEHAVIOR
+	.word  	ENP10
+	.byte 	MAD|DYING
+	.byte 	LOAD,29		;IF MAD OR DYING, USE THIS DELAY
+ENP10:	.byte 	SETALT,REGISTER	;DELAY SPECIFIED TIME FOR THIS WORLD
+
+ENP15:	.byte 	ALTCOUNT
+	.word  	ENP20
+	.byte 	1		;WHEN COUNTER RUNS OUT, ATTACK
+	
+	.byte 	RANGE
+	.word  	ENP15		;KEEP COUNTING IF STILL IN RANGE
+	.byte 	32,15
+	.byte 	IFBEHAVIOR	;IF SHY
+	.word  	ENP20		;HE ALWAYS FINISHES EVEN IF YOU LEAVE
+	.byte 	SHY
+	.byte 	ACTIVATE,EWALK
+
+ENP20: 	.byte 	ACTIVATE,EATTACK
+
+
+;THIS FALL MODE TURNS SOLIDSTATE BACK ON, WAITS FOR CONTACT WITH SOLID
+;OR DEATH LEVEL, THEN ACTIVATES WALK MODE.
+
+ENFALL:	.byte 	INSTRUCTIONS,3
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+ 	.byte 	SOLIDSTATE,SAFE		
+
+ENF5:	.byte 	STANDING
+	.word  	ENF10
+	.byte 	YVISUAL
+	.word  	ENF5
+	.byte 	200    		;CATCH IF ABOVE BOTTOM, NOT DEAD YET.
+
+	.byte 	DIE,1		;DIE IF WE FELL OFF SCREEN
+
+;DONE FALLING. SEE IF WE ENDED UP RIGHT NEXT TO OUR TARGET.
+
+ENF10:	.byte 	RANGE
+	.word  	GOPOSE
+	.byte 	30,16		
+	.byte 	ACTIVATE,EWALK
+GOPOSE:	.byte 	ACTIVATE,EPOSE
+
+;ALL KUNG FU TYPE ENEMYS SHOULD GO HERE TO FINISH THEIR WAKEUP.  THEY
+;MUST SET REGISTER TO THE SONG THEY WANT.
+
+ENWAKE:	.byte 	INSTRUCTIONS,5
+	.byte 	TARGET
+	.word  	HERO0
+ENW10:	.byte 	IDENTIFY		;IDENTIFY AS ONE WHO ONLY GETS HEROS
+	.word  	ENEMY
+	.byte 	XTRACK,TOWARDS 		;COME HERE FOR MONGO WAKE
+	.byte 	FRICTION,8,0		;SLOW FRICTION DOWN
+ 	.byte 	MOMLIMIT,60,-1		;GIVE ENTITIES BETTER SPEED RANGE
+
+	.byte 	INSTRUCTIONS,4
+	.byte 	STORE,STATE	;SAVE SONG TO PLAY
+
+	.byte 	SOUNDBUSY
+	.word  	ENW20
+	.byte 	DONTCARE,DONTCARE,DONTCARE,ON	;MAKE SURE WE PLAYED THE LAST
+						;ONE FOR THE MINIMUM TIME.
+
+ENW20: 	.byte 	FINISH			;FINISH WAKE UP
+	.byte 	SETMOM,1,0		;START BY FACING HERO
+	.byte 	ACTIVATE,EWALK		;START LOOKING FOR A HERO TO KILL
+
+;THIS TABLE HAS THE MUSIC TO USE FOR A GIVEN KUNGFU ENEMY.  LOAD REGISTER
+;WITH THE NUMBER TO GET BEFORE GOING TO ENWAKE.
+
+
+ENHURT:	.byte 	INSTRUCTIONS,7		;SPEED UP PROCESSING A BIT
+	.byte 	DAMAGE		;APPLY HURT DAMAGE TO HEALTH
+	.byte 	FETCHREG,DEF_SOLID
+	.byte 	SOLIDSTATE,REGISTER	;RESTORE SOLID VALUE
+	.byte 	SOLIDSTATE,SAFE		
+	.byte 	FACE,CURRENT	;KEEP HIM FACING CURRENT DIRECTION
+	.byte 	ASSESS		;SEE IF HEALTH IS ZERO
+	.word  	ENDEAD
+	.byte 	0
+	.byte 	IFBEHAVIOR
+	.word  	HD20
+	.byte 	INTELLIGENT	;IF INTELLIGENT ENTITY, HE CAN JUMP BACK
+
+;CATCH SPECIAL CASES OF PINNED AGAINST SIDE 
+
+	.byte 	INSTRUCTIONS,5
+	.byte 	ATTACK
+	.word  	EN18		;IF DYNAMITE, NEED TO CATCH SOON TO ENABLE HURT
+	.byte 	4
+	.byte 	XVISUAL		;SEE IF PINNED TO LEFT OF SCREEN
+	.word  	EN19		;IF SO, THROW HIM RIGHT
+     	.byte 	16
+
+;HE'S PINNED AGAINST THE LEFT.  THROW HIM RIGHT.
+
+	.byte 	XVISUAL		;SEE IF PINNED TO LEFT OF SCREEN
+	.word  	EN9
+     	.byte 	240
+
+	.byte 	INSTRUCTIONS,4
+	.byte 	XTRACK,NONE
+	.byte 	SETMOM,-56,-88
+	.byte 	XTRACK,TOWARDS
+	.byte 	SKIP
+	.word  	EN30
+
+;HE'S PINNED AGAINST THE RIGHT.  THROW HIM LEFT.
+
+EN19:	.byte 	XTRACK,NONE
+	.byte 	SETMOM,56,-88
+	.byte 	XTRACK,TOWARDS
+	.byte 	SKIP
+	.word  	EN30
+
+EN9:	.byte 	FETCHREG,ATTACK
+	.byte 	LIMIT,4,0
+	.byte 	TABLE
+	.word  	EN10		;0
+	.word  	EN14
+	.word  	EN14		;2
+	.word  	EN16
+	.word  	EN18		;4
+
+;ATTACK #0.  THROW HIM BACK ONLY VERY LITTLE.
+
+EN10:  	.byte 	INSTRUCTIONS,4
+	.byte 	THROWBACK,24,-1	;THROW ALL HURT ENEMIES BACK A LITTLE BIT
+	.byte 	RANDOM
+	.word  	EN14
+	.byte 	64		;1/4 TIME THROW HIM ANYWAY.
+	.byte 	LOAD,28
+	.byte 	DELAY,REGISTER	;WAIT HURT TIME FOR WHEN NOT THROWN
+	.byte 	SKIP
+	.word  	EN30
+
+
+
+;ATTACK #1.  THROW HIM BACK A LOT
+
+EN14: 	.byte 	INSTRUCTIONS,$85
+	.byte 	THROWBACK,72,-72	;IF NOT, THROW HIM BACK
+	.byte 	RANDOM
+	.word  	EN17
+     	.byte 	128
+	.byte 	ADDMOM,0,-24	;RANDOMIZE THE MOMENTUM A BIT
+	.byte 	SKIP
+	.word  	EN17
+
+;ATTACK #3.  THROW HIM A MEDIUM AMOUNT.
+
+EN16: 	.byte 	INSTRUCTIONS,$82
+	.byte 	THROWBACK,24,-48	;THROW BACK A LITTLE FOR SIDE KICK
+
+EN17: 	.byte 	INSTRUCTIONS,3
+	.byte 	LOWNOISE
+	.word  	BUMPSND
+	.byte 	LOAD,27
+	.byte 	DELAY,REGISTER
+	.byte 	SETMOM,0,0		;MAKE HIM BRAKE SUDDENLY
+	.byte 	SKIP
+	.word  	EN30
+
+;ATTACK #4.  ITS A DYNAMITE ATTACK.
+
+EN18: 	.byte 	ENABLE,HURTING		;IF DYNAMITE THROWBACK, ENABLE HURTING
+	.byte 	FETCHREG,RANDOM
+	.byte 	REGMOM,REGISTER,-1
+	.byte 	SETMOM,-1,-96		;RANDOM LEFT OR RIGHT FOR DYNAMITE
+	.byte 	DELAY,20
+
+;WE ARE DONE THROWING HIM AND DELAYING HIM.
+
+EN30:	.byte 	SETBEHAVIOR,MAD	;SET HIM AS MAD CAUSE HE GOT HURT
+	.byte 	ASSESS
+	.word  	ENAGGRESSIVE
+	.byte 	4
+
+HURTDONE:			;HURT ENDS HERE.  PUT YOUR SPECIAL CODE HERE.
+	.byte 	INSTRUCTIONS,5
+	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL
+	.word  	HD10		;IF MONGOLIANS, DO ATTACK ASAP AFTER HURT
+	.word  	23
+	.byte 	ACTIVATE,EWALK
+
+HD10: 	.byte 	SHAKE,0
+ 	.byte 	SETMOM,1,-1		;MAKE MONGOLIAN FACE HERO
+	.byte 	FACE,TRAVELING|DOWN	;FACE DIRECTION OF TRAVEL
+	.byte 	ACTIVATE,EFAR
+
+HD20: 	.byte 	ENABLE,HURTING		;WE MUST ALLOW HURTING DURING DODGE.
+	.byte 	ACTIVATE,EDODGE
+
+ENAGGRESSIVE:			;SKIP TO HERE TO BECOME MORE AGRESSIVE
+	.byte 	SETBEHAVIOR,DYING
+	.byte 	SKIP
+	.word  	HURTDONE
+
+;NO NEED TO JUMP UP OR ACROSS LEDGE AND NOT IN RANGE FOR ATTACK.  SET WALKING
+;MOMENTUM BASED ON OUR STATE.
+
+PICKMOM:
+	.byte 	IFBEHAVIOR
+	.word  	FASTGUY
+	.byte 	MAD|DYING
+
+SLOWGUY: .byte 	SETMOM,24,0	;SET MOMENTUM TO FIXED VALUE BY STATE
+	 .byte 	SKIP
+	 .word  	CHECKAGAIN
+FASTGUY: .byte 	SETMOM,32,0
+  	 .byte 	SKIP
+	 .word  	CHECKAGAIN
+SLOWDOWN:
+	.byte 	SETMOM,8,0	;SLOW DOWN IF WITHIN 12 OF PRECIPICE
+	.byte 	SKIP
+	.word  	CHECKAGAIN
+
+	
+;THE ENTITY IS ON THE BRINK OF A PRECIPICE.  SEE IF WE SHOULD JUMP ACROSS.
+;FIRST MAKE SURE WE DIDN'T JUST OVERSHOOT FINDING THE HERO.
+
+JUMPACROSS:
+
+	.byte 	INSTRUCTIONS,2
+	.byte 	SETMOM,1,0	;CANCEL MOMENTUM
+	.byte 	ACTIVATE,ESTAND	;USE THE STANDING ANIMATION FOR THE DELAY
+
+;	.byte 	INSTRUCTIONS,3
+;	.byte 	LOAD,19		;SEE IF THIS WORLD HAD DROPS TO ONES DEATH
+;	.byte 	EQUAL
+;	.word  	JAC10		;IF NOT, MAKE DARING JUMPS
+;	.word  	0
+
+	.byte 	PRECIPICE	;MAKE SURE THERE'S SOMEWHERE TO LAND
+	.word  	JH7		;IF ITS TOO FAR TO SAFE GROUND, DON'T JUMP
+	.byte 	48
+
+JAC10:	.byte 	LOAD,25
+	.byte 	DELAY,REGISTER	;WAIT A SECOND BEFORE JUMPING ACROSS
+
+	.byte 	PRECIPICE
+	.word  	JH6
+	.byte 	8
+	.byte 	PRECIPICE
+	.word  	JH6
+	.byte 	0
+    	.byte 	SKIP
+	.word  	JH7		;IF NO PRECIPICE AFTER DELAY, HE MOVED ON US.
+
+JH6:  	.byte 	SETREG,2,0
+	.byte 	STORE,STATE
+	.byte 	INSTRUCTIONS,$82
+	.byte 	SETMOM,32,0
+	.byte 	ACTIVATE,EJUMP	;SET STATE OF JUMP ACROSS
+
+JH7:   	.byte 	ANIMATION,EWALK,2	;GET RID OF THE STANDING ANIMATION
+	.byte 	SKIP
+	.word  	CHECKAGAIN
+
+;THE HERO IS ABOVE US BY MORE THAN 7.  WE WANT TO SEE IF THERE IS A LEDGE
+;WE CAN JUMP UP ONTO.
+
+LEDGEHUNT:
+
+	.byte 	INSTRUCTIONS,4
+
+	.byte 	IFNBEHAVIOR
+	.word  	DOLEDGE		;SKIP IF CAN'T SHOOT
+	.byte 	FAST		;FAST MEANS WE CAN SHOOT
+
+	.byte 	RANGE
+	.word  	DOLEDGE
+	.byte 	64,-1		;MUST BE FURTHER AWAY THAN 64 TO SHOOT
+
+	.byte 	RANDOM		;BUT WE WANT TO JUMP UP MOST TIMES
+	.word  	DOLEDGE
+	.byte 	128
+	.byte 	RANGE
+	.word  	CANSHOOT
+	.byte 	-1,48		;MUST BE WITHIN 48 ON Y LEVEL
+	
+DOLEDGE:
+	.byte 	LEDGE
+	.word  	LH20
+	.byte 	4			;TRY FOR A LEDGE 5 ABOVE US
+
+	.byte 	FETCHREG,ENTITY		;GET THE ENTITY NUMBER
+	.byte 	EQUAL
+	.word  	LH40
+	.word  	7			;BIRDMAN CAN REALLY JUMP!
+
+LH12:	.byte 	STAIR
+	.word  	GO_UP
+	.byte 	5
+
+	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+	.byte 	PRECIPICE	
+	.word  	JUMPACROSS		;IF PRECIPICE IN PATH, JUMP ACROSS
+	.byte 	8
+
+ 	.byte 	SETMOM,24,-1		;WE'RE IN A LEDGE LOOP. KEEP MOVING
+
+LH15:	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL
+	.word  	PISSEDOFF
+	.word  	23		;IF BLUE MONGOLIAN, HE WON'T LET YOU BE ABOVE.
+
+LH17:	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+	.byte 	PRECIPICE	
+	.word  	JUMPACROSS		;IF PRECIPICE IN PATH, JUMP ACROSS
+	.byte 	8
+	.byte 	DISTANCE
+	.word  	SLOWCHECK	;DON'T ALLOW IT TO OSCILLATE IF HERO WITHIN 16
+	.byte 	16,-1
+	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+	.byte 	SKIP
+	.word  	CHECKAGAIN	;OTHERWISE STAY IN WALKING LOOP BUT SLOW
+
+LH20:	.byte 	SETMOM,1,0
+	.byte 	SETREG,0,0
+	.byte 	STORE,STATE
+	.byte 	ACTIVATE,EJUMP		;JUMP STRAIGHT UP IF LEDGE.
+
+LH40: 	.byte 	INSTRUCTIONS,5
+	.byte 	YVISUAL			;MAKE SURE NOT TOO HIGH
+	.word  	LH12
+	.byte 	16*8
+	.byte 	RANGE
+	.word  	LH12
+	.byte 	-1,12*8			;DON'T JUMP UP IF HERO NOT THAT HIGH
+	.byte 	LEDGE
+	.word  	LH45
+	.byte 	16			;TRY FOR A LEDGE 16 ABOVE US
+	.byte 	SKIP
+	.word  	LH12
+
+LH45:	.byte 	SETMOM,1,0
+	.byte 	SETREG,4,0
+	.byte 	STORE,STATE
+	.byte 	ACTIVATE,EJUMP		;JUMP STRAIGHT UP IF LEDGE.
+
+PISSEDOFF:
+	.byte 	RANDOM
+	.word  	LH17		;DON'T GET UNFAIRLY MAD!
+	.byte 	128
+	.byte 	ACTIVATE,EFAR
+
+GO_UP:	.byte 	SETREG,3,0
+	.byte 	STORE,STATE
+	.byte 	SETMOM,1,0
+	.byte 	ACTIVATE,EJUMP	;SET STATE OF JUMP UP A STAIR
+
+	
+;HERE'S THE NINJA'S BACKWARDS FLIP AFTER HE GETS HURT.
+
+NINDODGE:
+	.byte 	ADDMOM,-64,-72
+	.byte 	DELAY,8
+	.byte 	XVISUAL
+	.word  	ND10
+	.byte 	16			;IF WE HIT LEFT, REVERSE
+	.byte 	XVISUAL
+	.word  	ND5
+	.byte 	250
+	.byte 	SKIP
+	.word  	ND10
+
+ND5:	.byte 	ADDMOM,-64,-72
+	.byte 	DELAY,8
+SHOOTAGAIN:
+	.byte 	ACTIVATE,ESHOOT
+
+ND10:	.byte 	SETREG,2,0
+	.byte 	STORE,STATE
+	.byte 	SETMOM,48,0
+	.byte 	ACTIVATE,EJUMP	;SET STATE OF JUMP ACROSS
+
+;HERE'S THE NINJA'S THROW SHURIKEN CODE.
+
+NINTHROW:
+	.byte 	FACE,TRAVELING|DOWN	;FACE DIRECTION OF TRAVEL
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS
+	.byte 	SETMOM,1,0
+NT10:	.byte 	FRAME
+	.word  	THROWIT
+	.byte 	2
+	.byte 	SKIP
+	.word  	NT10
+
+THROWIT:	
+	.byte 	RANDOM
+	.word  	THIT10
+	.byte 	128
+	.byte 	SPAWN,BOMBGUYID,25,2,0		;THROW A BOMB SOMETIMES  
+	.byte 	SKIP
+	.word  	THIT20
+THIT10:	.byte 	SPAWN,SHURIGUYID,25,2,0		;THROW A SHURIKEN
+	.byte 	NOISE
+	.word  	SHURISND
+THIT20:	.byte 	FINISH
+	.byte 	INSTRUCTIONS,6
+	.byte 	HOWMANY,11		;SEE HOW MANY SHURIKENS IF MASTER
+	.byte 	COMPARE
+	.word  	THIT30
+	.word  	3		;IF HAS 3, OK TO STOP SHOOTING
+	.byte 	RANDOM
+	.word  	SHOOTAGAIN
+	.byte 	64		;1/4 TIME THROW SOMETHING ELSE TOO.
+
+THIT30:	.byte 	ACTIVATE,EWALK
+
+LITTHROW:
+	.byte 	SETMOM,1,0
+	.byte 	DELAY,2
+	.byte 	SPAWN,BOLTGUYID,12,7,0		;SHOOT A LIGHTENING BULLET
+	.byte 	NOISE
+	.word  	THUNDER
+	.byte 	DELAY,4
+	.byte 	ACTIVATE,EWALK
+ARRTHROW:
+	.byte 	SETMOM,1,0
+	.byte 	SPAWN,37,12,5,0		;SHOOT AN ARROW
+	.byte 	NOISE
+	.word  	QUIKSWISH
+	.byte 	DELAY,4
+	.byte 	ACTIVATE,EWALK
+;************ SORCERER ENEMY MOVEMENTS ***********************
+;THE SORCERER APPEARS AND CASTS SPELLS.  HE WILL AWAY FROM
+;THE HERO IF THE HERO GETS TOO CLOSE AND WILL DISSAPPEAR AT WILL.
+;HE CAN ALSO LEAP UP TO AVOID THE HERO.
+;HE NEED ONLY BE LAUNCHED ONE TIME, HE MOVES AROUND ON HIS OWN
+;AND SOMETIMES HIDES IN AN INVUNERABLE STATE.  
+;THE CODE HERE SUPPORTS 2 WIZZARDS, A LESSER AND
+;A GREATER.  THE MORE POWERFUL WIZZARD IS FLAGGED BY SETTING THE
+;FAST BEHAVIOR BIT.  ALSO, HE TURNS RED IF OPTION1 IS SET AND HEALTH
+;GOES BELOW 10.
+
+GRENADE:
+	.word  	GRENTWRL
+	.word  	BOMBWAKE
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+MACHINEGUN:
+	.word  	WIZBUL1
+	.word  	MACHINEWAKE
+	.byte 	0,0
+	.byte 	$20,$11
+	.byte 	$11,$0F
+WIZEXPL:
+	.word  	WIZBLOW
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+SORWAKE2:
+	.byte 	INSTRUCTIONS,8
+	.byte 	SETBEHAVIOR,FAST 	;FLAG THE BIG GUY
+	.byte 	SETREG,BIGSPGUYID,0	;WIZZARD SCROLL TOO.
+	.byte 	SKIP
+	.word  	SOR5
+SORWAKE:
+	.byte 	INSTRUCTIONS,4
+	.byte 	SETREG,LITLSPGUYID,0
+SOR5:	.byte 	STORE,STATE	;SET SPELL TO CAST
+
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	SETMOM,1,0	;FACE HERO
+SOR20:	.byte 	ENABLE,HURTING
+	.byte 	DELAY,20
+	.byte 	MOMLIMIT,48,96
+	.byte 	FINISH
+	.byte 	ACTIVATE,ESTAND
+	
+;THE SORCERER CAN'T BE HURT UNLESS HE IS VISIBLE BUT THAT'S TAKEN
+;CARE OF IN THE HIDING CODE.
+
+SORHURT:	
+	.byte 	GRAVITY,0
+	.byte 	DAMAGE
+	.byte 	ASSESS
+	.word  	SORDIE
+	.byte 	0
+	.byte 	FRICTION,16,0
+	.byte 	NOISE
+	.word  	HURTNOISE
+	.byte 	THROWBACK,60,-24
+	.byte 	ACTIVATE,EJUMP	;TRY TO GET AWAY IF HURT
+
+;THE SORCERER IS DEAD.  RUN HIS DEATH ANIMATION.
+
+SORDIE:	.byte 	ANIMATION,EMIDDLE,2	;GET THE DEATH ANIMATION
+	.byte 	SETMOM,0,0
+SORD10:	.byte 	FINISH
+	.byte 	IFBEHAVIOR
+	.word  	SORD30
+	.byte 	FAST
+	.byte 	GRAVITY,8
+	.byte 	SOLIDSTATE,OFF
+	.byte 	NOISE
+	.word  	SLOWDROP
+	.byte 	DELAY,20
+ 	.byte 	LAUNCH,9,4,0,0 		;GIVE DYNAMITE WHEN DEAD
+	.byte 	LOWNOISE
+	.word  	DIEPRIZE
+	.byte 	DIE,1
+SORD20:	.byte 	ACTIVATE,EWAKE
+SORD30:	.byte 	FETCHREG,WORLD	
+	.byte 	EQUAL	    	;IF BOOT SCREEN THEN DON'T LET HIM DIE!!
+	.word  	SORD20
+	.word  	0
+	.byte 	SEQUENCE     		;DOCTOR DEFORM DEATH
+	.word  	WIZEXPL
+	.byte 	SOUND
+	.word  	0,VICTORY,0,0
+SORD35:	.byte 	BPALETTE
+	.word  	CPAL1
+	.byte 	BPALETTE
+	.word  	DUPAL1
+	.byte 	BPALETTE
+	.word  	JPAL1
+	.byte 	SOUNDBUSY
+	.word  	SORD35
+	.byte 	0,0,0,0	
+	.byte 	BPALETTE
+	.word  	-1
+	.byte 	DELAY,30
+;ENDING MESSAGE FOR Y'ALL
+	.byte 	LOAD,23
+	.byte 	SETREG
+	.word  	88
+	.byte 	SKIP
+	.word  	XWIPEOUT
+
+;WE ARE FALLING.  JUST GO TO VANISH MODE.
+
+SORFALL:
+	.byte 	ACTIVATE,EDUCK
+
+;WE ARE SUPPOSED TO JUMP UP.
+
+SORJUMP:
+	.byte 	SOLIDSTATE,OFF
+	.byte 	GRAVITY,4
+	.byte 	INSTRUCTIONS,$83
+	.byte 	XTRACK,AWAY
+	.byte 	SETMOM,8,-48
+	.byte 	XTRACK,NONE
+	.byte 	DELAY,10
+	.byte 	ACTIVATE,EDUCK
+
+;THIS CODE LETS THE SORCERER SHOOT HIS MAGIC.  THE TWO WIZZARDS
+;USE DIFFERENT SPELLS (ENTITY NUMBERS).
+
+SORSHOOT:
+	.byte 	INSTRUCTIONS,$83
+	.byte 	XTRACK,TOWARDS
+	.byte 	SETMOM,1,0
+	.byte 	XTRACK,NONE
+ST20:	.byte 	LOAD,STATE
+	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
+	.byte 	DELAY,1
+	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
+	.byte 	DELAY,1
+	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
+	.byte 	FINISH
+	.byte 	DELAY,8
+	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL	  	;IF DOCTOR DEMISE, DON'T LAUNCH ROBOT
+	.word  	ST25
+	.word  	19	
+	.byte 	RANDOM	  	;RANDOMLY LAUNCH ROBOT
+	.word  	ST25
+	.byte     	128
+	.byte 	RANDOM	  	;LAUNCH ON RIGHT OR LEFT
+	.word  	ST15
+	.byte 	127 	
+	.byte 	CREATE,57,8,2,0		;LAUNCH ON LEFT
+	.byte 	SKIP
+	.word  	ST25
+ST15:	.byte 	CREATE,57,232,2,0		;LAUNCH ON RIGHT	
+ST25:	.byte 	ACTIVATE,ESTAND
+
+;THE SORCERER'S STANDING LOGIC MAKES THE DECISIONS.  IT TRIES TO
+;VANISH IF THE HERO IS THREATENING IT BUT AS LONG AS THERE IS AN ACTIVE
+;SPELL IT CAN'T.  
+
+SORSTAND:
+	.byte 	SETCOUNTER,20	;LOCK OUT DEMATERIALIZATION FOR 1 SECOND
+SS5:	.byte 	FRICTION,16,0
+	.byte 	ENABLE,HURTING	;ENABLE HURT MODE.
+	.byte 	GRAVITY,8	;TURN ON SOME GRAVITY
+	.byte 	STANDING
+	.word  	SS10
+	.byte 	ACTIVATE,EFALL	;IF NOT STANDING, FALL.
+
+SS10:  	.byte 	INSTRUCTIONS,$83
+	.byte 	XTRACK,TOWARDS
+	.byte 	SETMOM,1,0
+	.byte 	XTRACK,NONE
+	.byte 	DISTANCE
+	.word  	SS50
+	.byte 	32,32		;IF HERO TOO CLOSE ON BOTH AXIS, VANISH
+
+;WE EITHER DON'T NEED TO OR CAN'T VANISH. SEE IF WE SHOULD JUMP UP
+
+SS20:	.byte 	DISTANCE
+	.word  	SS49
+	.byte 	64,32
+
+;SEE IF WE SHOULD WALK AWAY.
+
+SS40:	.byte 	DISTANCE
+	.word  	SS48
+	.byte 	96,48
+
+;SHOOT MACHINE GUN FIRE
+
+	.byte 	RANDOM
+	.word  	SS5
+	.byte 	128
+
+ 	.byte 	ACTIVE
+	.word  	SS42
+	.byte 	ID
+	.word  	HEROID		;DON'T FIRE UNLESS THE HERO IS ACTIVE.
+
+	.byte 	SKIP
+	.word  	SS5
+
+SS42:  	.byte 	ACTIVATE,EATTACK	;CAST A SPELL
+
+SS48:	.byte 	ACTIVATE,EWALK
+SS49:	.byte 	ACTIVATE,EJUMP
+
+;WE WANT TO VANISH. WE CAN'T IF SPELL ACTIVE OR IF COUNTER STILL TRUE.
+
+SS50: 	.byte 	LOAD,STATE
+	.byte 	ACTIVE
+	.word  	SS20  	;CAN'T VANISH IF SPELL ACTIVE
+	.byte 	ID
+	.word  	REGISTER
+	.byte 	ABOVECOUNT
+	.word  	SS5
+	.byte 	1
+SS51:	.byte 	ACTIVATE,EDUCK	;GO INTO VANISH MODE IF SAFE TO DO SO.
+
+;WE ARE SUPPOSED TO WALK AWAY FOR A BIT.
+
+SORWLK:	.byte 	FRICTION,0,0
+	.byte 	INSTRUCTIONS,$83
+	.byte 	XTRACK,AWAY
+	.byte 	SETMOM,32,0
+	.byte 	XTRACK,NONE
+	.byte 	PRECIPICE
+	.word  	SWK10
+	.byte 	16		;JUMP IF NEAR EDGE
+	.byte 	DELAY,4
+	.byte 	PRECIPICE
+	.word  	SWK10
+	.byte 	16		;JUMP IF NEAR EDGE
+	.byte 	DELAY,4
+	.byte 	PRECIPICE
+	.word  	SWK10
+	.byte 	16		;JUMP IF NEAR EDGE
+	.byte 	DELAY,4
+	.byte 	ACTIVATE,ESTAND
+
+SWK10:	.byte 	ACTIVATE,EJUMP
+
+;THIS IS THE SORCERER'S HIDING CODE.  WHEN HE HAS COMPLETELY VANISHED
+;WE DISABLE HURTING AND CAN MOVE AROUND BUT NOT ATTACK.  WE CAN'T MOVE
+;AROUND INTELLIGENTLY THOUGH, WE JUST PICK A SPOT AND MATERIALIZE.  THIS
+;GIVES THE HERO A CHANCE TO FOLLOW US AND ATTACK WHEN WE APPEAR.
+
+SORHIDE:
+	.byte 	GRAVITY,0
+	.byte 	ENABLE,HURTING
+	.byte 	FINISH
+	.byte 	ACTIVATE,ENEAR	;GET THE FINAL FLOATING ANIMATION
+	.byte 	SETCOUNTER,40	;FLOAT FOR 2 SECONDS AT LEAST
+	
+SH10:
+	.byte 	COUNT
+	.word  	SH50
+	.byte 	1		;IF COUNTER OUT, OK TO TRY MATERIALIZING.
+
+SH11: 	.byte 	SOLIDSTATE,OFF
+	.byte 	SETMOM,24,0	;ASSUME GOING RIGHT
+	.byte 	IFXEDGE
+	.word  	SH15		;IF TOO FAR LEFT OR RIGHT, REPEL FROM EDGE.
+	.byte 	64
+
+SH12:	.byte 	RANDOM
+	.word  	SH20		;GET 50/50 ODDS OF DOING THAT
+	.byte 	128
+ 	.byte 	SETMOM,-24,0
+	.byte 	SKIP
+	.word  	SH20
+
+SH15:	.byte 	XVISUAL
+	.word  	SH20
+	.byte 	64		;ITS TRUE IF WE ARE ON LEFT EDGE
+	.byte 	SETMOM,-24,0
+
+SH20: 	.byte 	SETMOM,-1,24	;ASSUME WE WILL GO DOWN
+	.byte 	YVISUAL
+	.word  	SH40
+	.byte 	40		;IF HIGH, ALWAYS DROP
+
+	.byte 	RANDOM
+	.word  	SH40
+	.byte 	128
+SH35:	.byte 	SETMOM,-1,-32	;GO UP HALF TIMES
+SH40: 	.byte 	INSTRUCTIONS,$83
+	.byte 	YTRACK,TOWARDS
+	.byte 	ADDMOM,0,16
+	.byte 	YTRACK,NONE
+	.byte 	FETCHREG,RANDOM
+	.byte 	LIMIT,8,0 
+	.byte 	DELAY,REGISTER	;FLOAT FOR A WHILE
+
+	.byte 	YVISUAL
+	.word  	SH20
+	.byte 	40		;IF TOO HIGH, DROP DOWN
+
+	.byte 	IFNBEHAVIOR
+	.word  	SH47
+	.byte 	FAST		;LESSER SORCERER CAN'T THROW SKULLS
+	.byte 	RANDOM
+	.word  	SH47
+	.byte 	64		;THROW SKULLS ONLY ONCE AND A WHILE
+	.byte 	IFNBEHAVIOR
+	.word  	SH45
+	.byte 	OPTION1
+     	.byte 	RANDOM
+	.word  	SH47
+	.byte 	128		;UNTIL HALF DEAD, NOT SO MANY SKULLS
+SH45:	.byte 	LAUNCH,SKULLGUYID,12,12,0
+
+SH47:	.byte 	RANDOM
+	.word  	SH10
+	.byte 	128
+
+	.byte 	INSTRUCTIONS,$83
+	.byte 	XTRACK,TOWARDS
+	.byte 	SETMOM,1,0
+	.byte 	XTRACK,NONE
+	.byte 	LOAD,STATE
+	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
+	.byte 	DELAY,1
+	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
+	.byte 	DELAY,1
+	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
+
+	.byte 	FETCHREG,WORLD
+	.byte 	EQUAL		;IF BOOT SCREEN DON'T LAUNCH ROBOT
+	.word  	SH10
+	.word  	0
+
+	.byte 	RANDOM	  	;RANDOMLY LAUNCH ROBOT
+	.word  	SH10
+	.byte     	128
+	.byte 	RANDOM	  	;LAUNCH ON RIGHT OR LEFT
+	.word  	SH48
+	.byte 	127 	
+	.byte 	CREATE,57,8,2,0		;LAUNCH ON LEFT
+	.byte 	SKIP
+	.word  	SH10
+SH48:	.byte 	CREATE,57,232,2,0		;LAUNCH ON RIGHT	
+
+	.byte 	SKIP
+	.word  	SH10
+
+SH50: 	.byte 	IFXEDGE
+	.word  	SH11
+	.byte 	32		;DON'T MATERIALIZE TOO CLOSE TO EDGE
+ 
+	.byte 	SOLIDSTATE,ON	;WE CAN MATERIALIZE.  SEE IF SAFE
+	.byte 	TESTSOLID	;SEE IF SOLIDS THERE
+	.word  	SH11		;IF SO, RESUME MOVING
+	.byte 	0,0
+	.byte 	FLOOR
+	.word  	SH60
+	.byte 	5		;IF WE FOUND A FLOOR BELOW, REMATERIALIZE
+	.byte 	SKIP
+	.word  	SH11
+
+SH60:	.byte 	SETMOM,0,0
+	.byte 	SOLIDSTATE,SAFE
+	.byte 	GRAVITY,8	;PREPARE TO LAND
+
+SH65:	.byte 	STANDING
+	.word  	SH70
+	.byte 	YVISUAL
+	.word  	SH65		;IF HAVEN'T FALLEN, CONTINUE.
+	.byte 	176
+	.byte 	GRAVITY,0
+	.byte 	SKIP
+	.word  	SH20
+SH70:	.byte 	ANIMATION,EWAKE,2
+	.byte 	SKIP
+	.word  	SORSTAND
+
+;THIS ENTITY IS LAUNCHED BY THE HERO TO WAKE UP A WORLD.  PERMANENT
+;ENEMY MEMORY IS RESET SOMEWHERE ELSE TO ALLOW COMING BACK HERE WITHOUT
+;RELAUNCHING ENEMIES SINCE WE COME HERE ALWAYS AFTER FALLING OFF A CLIFF.
+;BUT CHEATER MODE MUST BE CAUGHT SINCE IT GOES HERE WITHOUT OUR KNOWLEDGE.
+
+WWAKEUP:				;WORLD WAKEUP LIST
+	.byte 	INSTRUCTIONS,$DF
+	.byte 	GRAVITY,0
+	.byte 	FETCHREG,WORLD
+	.byte 	STORE,23		;SET CONTINUE MODE WORLD.
+;	.byte 	IFNCHEAT
+;	.word  	WWK10
+; 	.byte 	REBORN,ALL	;ENABLE ALL ENTITIES IF CHEATER MODE
+	
+WWK10:	.byte 	SHAKE,0
+	.byte 	SETREG,OFF,0
+	.byte 	STORE,31		;NO SUPER SOLIDS
+
+	.byte 	SETPAUSE,ON	;ALLOW PAUSING
+	.byte 	SETSTATPAL,0,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte 	SETSTATPAL,1,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte 	FILLVID,1,0,$41,STATVID,64
+	.byte 	FILLVID,3,0,$41,STATVID,64
+
+	.byte 	LOAD,12	 	;TEST FOR ACTIVE TORCH
+	.byte 	EQUAL	
+	.word  	WWK11	
+	.word  	0
+	.byte 	CREATE,FIREDUMMY,255,192,0
+
+WWK11:	.byte 	CREATE,18,255,192,0 ;LAUNCH THE STATUS BAR SELECTOR
+	.byte 	CREATE,STATGUYID,255,192,0	;LAUNCH THE STATUS BAR UPDATER
+
+	.byte 	INSTRUCTIONS,13
+	.byte 	SETREG,0,0
+	.byte 	STORE,30
+	.byte 	SETREG,0,0
+	.byte 	STORE,29	;SET THE 2 DELAYS FOR ATTACK
+	.byte 	SETREG,0,0
+	.byte 	STORE,28
+	.byte 	SETREG,12,0
+	.byte 	STORE,27
+	.byte 	SETREG,0,0
+	.byte 	STORE,26
+	.byte 	SETREG,0,0
+	.byte 	STORE,25
+	.byte 	DIE,0		;GO AWAY, WE ARE DONE
+
+HEALTHENTITY:
+	.word    	DUMMY		;STATUS BAR UPDATER ENTITY.
+	.word  	UPDATESTAT
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+;THIS ENTITY UPDATES THE STATUS BAR AND THEN DIES
+
+UPDATESTAT:
+	.byte 	INSTRUCTIONS,15		;CAN JUMP HERE TO UPDATE AND DIE.
+	.byte 	GRAVITY,0
+	.byte 	GETJOYHEALTH,JOY1
+	.byte 	CDIVIDE,4		;MAKE 0-5 HEARTS FROM 0-20 HEALTH
+	.byte 	LIMIT,5,0
+	.byte 	TABLEVID
+	.word  	HEALTHLOC
+	.byte 	4,1,STATVID,5
+	.byte 	SKIP
+	.word  	SHOWMEN
+
+HEALTHLOC:	.word  	HEALTHS+5
+		.word  	HEALTHS+4
+		.word  	HEALTHS+3
+		.word  	HEALTHS+2
+		.word  	HEALTHS+1
+		.word  	HEALTHS+0
+
+HEALTHS: .byte 	$9F,$9F,$9F,$9F,$9F,$41,$41,$41,$41,$41
+
+SHOWMEN:
+	.byte 	GETHEROS,JOY1
+	.byte 	EQUAL
+	.word  	HDX10
+	.word  	0
+	.byte 	ADD		;SHOW HERO'S IN RESERVE, NOT TOTAL
+	.word  	-1
+
+HDX10:	.byte 	LIMIT,9,0
+	.byte 	SHOWREG,4,26,STATVID
+	.byte 	WRITEVID
+	.word  	HERODISP
+	.byte 	3,27,STATVID,3
+	.byte 	WRITEVID
+	.word  	HEROBDISP
+	.byte 	4,27,STATVID,3
+	.byte 	SKIP
+	.word  	SHOWDYNAMITE
+
+HERODISP:
+	.byte 	$5C,$5D,$41
+
+HEROBDISP:			;BOTTOM ROW DISPLAY
+	.byte 	$7C,$7D,$B8
+
+SHOWDYNAMITE:
+	.byte 	INSTRUCTIONS,11
+	.byte 	LOAD,16
+	.byte 	LIMIT,99,0
+	.byte 	SHOWREG,4,6,STATVID
+	.byte 	WRITEVID
+	.word  	MAGICDISP
+	.byte 	3,6,STATVID,3
+	.byte 	WRITEVID
+	.word  	LMAGICDISP
+	.byte 	4,6,STATVID,3
+	.byte 	SKIP
+	.word  	SHOWMAP
+
+MAGICDISP:
+	.byte 	$41,$41,$41
+
+LMAGICDISP:
+	.byte 	$BC,$BD,$B8
+
+SHOWMAP:
+	.byte 	LOAD,11   ;GET NUMBER OF MAPS
+	.byte 	LIMIT
+	.word  	1
+	.byte 	TABLEVID
+	.word  	TMAP
+	.byte 	3,15,STATVID,1 
+	.byte 	TABLEVID
+	.word  	BMAP
+	.byte 	4,15,STATVID,1
+	.byte 	SKIP
+	.word  	SHOWTORCH	
+
+TMAP:
+	.word      TOPMAP+0
+	.word  	TOPMAP+1
+
+BMAP:
+	.word      BOTMAP+0
+	.word  	BOTMAP+1
+
+
+TOPMAP:	.byte 	$41,$5A
+BOTMAP:	.byte 	$41,$7A
+
+SHOWTORCH:
+	.byte 	INSTRUCTIONS,10
+	.byte 	LOAD,4	;GET NUMBER OF TORCHES
+	.byte 	LIMIT
+	.word  	1
+	.byte 	TABLEVID
+	.word  	TTORCH
+	.byte 	3,23,STATVID,1 
+	.byte 	TABLEVID
+	.word  	BTORCH
+	.byte 	4,23,STATVID,1
+	.byte 	SKIP
+	.word  	SHOWFOOD	
+
+TTORCH:
+	.word      TOPTORCH+0
+	.word  	TOPTORCH+1
+
+BTORCH:
+	.word      BOTTORCH+0
+	.word  	BOTTORCH+1
+
+TOPTORCH:	.byte 	$41,$9E
+BOTTORCH:	.byte 	$41,$BE
+
+SHOWFOOD:
+	.byte 	LOAD,6	;GET NUMBER OF TURKEY LEGS
+	.byte 	LIMIT
+	.word  	1
+	.byte 	TABLEVID
+	.word  	TFOOD
+	.byte 	3,12,STATVID,2 
+	.byte 	TABLEVID
+	.word  	BFOOD
+	.byte 	4,12,STATVID,2
+	.byte 	SKIP	     
+	.word  	SHOWBOOM	
+
+TFOOD:
+	.word      TOPFOOD+0
+	.word  	TOPFOOD+2
+
+BFOOD:
+	.word      BOTFOOD+0
+	.word  	BOTFOOD+2
+
+TOPFOOD:	.byte 	$41,$41,$9A,$9B
+BOTFOOD:	.byte 	$41,$41,$BA,$BB
+
+SHOWBOOM:
+	.byte 	INSTRUCTIONS,10
+	.byte 	LOAD,5	;GET NUMBER OF BOOMERRANG
+	.byte 	LIMIT
+	.word  	1
+	.byte 	TABLEVID
+	.word  	TBOOM
+	.byte 	3,17,STATVID,1 
+	.byte 	TABLEVID
+	.word  	BBOOM
+	.byte 	4,17,STATVID,1
+	.byte 	SKIP	     
+	.word  	SHOWBRASS	
+
+TBOOM:
+	.word      TOPBOOM+0
+	.word  	TOPBOOM+1
+
+BBOOM:
+	.word      BOTBOOM+0
+	.word  	BOTBOOM+1
+
+TOPBOOM:	.byte 	$41,$5E
+BOTBOOM:	.byte 	$41,$7E
+
+SHOWBRASS:
+	.byte 	LOAD,9		;GET NUMBER OF BRASS KNUCKLES
+	.byte 	LIMIT
+	.word  	1
+	.byte 	TABLEVID
+	.word  	TBRASS
+	.byte 	3,21,STATVID,1
+	.byte 	TABLEVID
+	.word  	BBRASS
+	.byte 	4,21,STATVID,1
+	.byte 	SKIP	     
+	.word  	SHOWSUCT	
+TBRASS:
+	.word      TOPBRASS+0
+	.word  	TOPBRASS+1
+
+BBRASS:
+	.word      BOTBRASS+0
+	.word  	BOTBRASS+1
+
+TOPBRASS:	.byte 	$41,$5B
+BOTBRASS:	.byte 	$41,$7B
+	
+SHOWSUCT:
+	.byte 	INSTRUCTIONS,12
+	.byte 	LOAD,7	;GET NUMBER OF CUPS
+	.byte 	LIMIT
+	.word  	2
+	.byte 	TABLEVID
+	.word  	TSUCT
+	.byte 	3,19,STATVID,1 
+	.byte 	TABLEVID
+	.word  	BSUCT
+	.byte 	4,19,STATVID,1
+	.byte 	SKIP	     
+	.word  	SHOWKEY	
+
+TSUCT:
+	.word      TOPSUCT+0
+	.word  	TOPSUCT+1
+	.word  	TOPSUCT+2
+BSUCT:
+	.word      BOTSUCT+0
+	.word  	BOTSUCT+1
+	.word  	BOTSUCT+2
+
+TOPSUCT:	.byte 	$41,$59,$58
+BOTSUCT:	.byte 	$41,$79,$78
+
+SHOWKEY:
+	.byte 	LOAD,8	;GET NUMBER OF BRASS KNUCKLES
+	.byte 	LIMIT
+	.word  	1
+	.byte 	TABLEVID
+	.word  	TKEY
+	.byte 	3,25,STATVID,1 
+	.byte 	TABLEVID
+	.word  	BKEY
+	.byte 	4,25,STATVID,1
+	.word  	DIE,1	
+
+TKEY:
+	.word      TOPKEY+0
+	.word  	TOPKEY+1
+
+BKEY:
+	.word      BOTKEY+0
+	.word  	BOTKEY+1
+
+TOPKEY: .byte 	$41,$99
+BOTKEY:	.byte 	$41,$B9
+
+;******* BOOT SCREEN ENTITIES ************
+
+COPRINFO:
+	.word    	DUMMY		;WAKEUP FOR BOOT KEY MONITOR
+	.word  	STARTKEY
+	.byte 	$40,-1
+	.byte 	0,0
+	.byte 	0,0
+STARTRUN:
+	.word    	HRUN
+	.word  	-1
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+
+BOOTMOVE:
+	.word  	DUMMY
+	.word  	BOOTCODE
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+	
+BOOTCODE:
+	.byte 	FRICTION,0,0
+	.byte 	IDENTIFY
+	.word  	HERO0
+	.byte 	GRAVITY,-1
+	.byte 	SEQUENCE
+	.word  	STARTRUN
+	.byte 	SETMOM,-40,0
+	.byte 	DELAY,4
+BTM10:	.byte 	STANDING
+	.word  	BTM10
+	.byte 	GRAVITY,0
+	.byte 	SEQUENCE
+	.word  	SUCTHORZ
+	.byte 	SETMOM,0,-24
+BTM20:	.byte 	YVISUAL
+	.word  	BTM30
+	.byte 	8
+	.byte 	SKIP
+	.word  	BTM20
+BTM30: 
+	.byte 	GRAVITY,-1
+	.byte 	SEQUENCE
+	.word  	STARTRUN
+	.byte 	SETMOM,40,0
+	.byte 	DELAY,4
+BTM40:	.byte 	STANDING
+	.word  	BTM40
+	.byte 	GRAVITY,0
+	.byte 	SEQUENCE
+	.word  	SUCTHORZ
+	.byte 	SETMOM,0,24
+BTM50:	.byte 	STANDING
+	.word  	BOOTCODE
+	.byte 	SKIP 
+	.word  	BTM50 									
+
+STARTKEY:			;BOOT ENTITY CODE
+    	.byte 	INSTRUCTIONS,$8F
+	.byte 	GRAVITY,0
+	.byte 	CREATE,59,226,160,0	;LAUNCH HERO SPRITE
+	.byte 	CREATE,19,32,16,0	  	;LAUNCH BOSSMAN
+	.byte 	ROTATION,ON
+	.byte 	RESET
+	.word  	SK0
+	.byte 	CHEAT,OFF	
+	.byte 	SETREG
+	.word  	-1
+	.byte 	STORE,23	;SET FLAG OF NO CONTINUE WORLD.
+
+SK0: 	.byte 	SETPAUSE,OFF	;DISALLOW PAUSING
+	.byte 	SHAKE,0		;RESET ANY LEFT OVER SHAKE
+
+ 	.byte 	JOYSTICK,0		;TAKE OVER JOYSTICK #0
+	.byte 	SETHEROS,OURJOY,5	;SET STARTING HEROS COUNT
+
+	.byte 	ENASCROLL,LEFT|RIGHT	;ENABLE SCROLLING
+
+SK9:	.byte 	SETREG,0,0
+	.byte 	STORE,17	;ZERO CHEAT MODE FLAG
+
+SK10: 	.byte 	BUTTON
+	.word  	SK20
+	.byte 	START		;SEE IF START PRESSED
+	.byte 	SKIP
+	.word  	SK10		;DEMO IF MUSIC DONE
+
+GOTCHEAT:
+	.byte 	BUTTON
+	.word  	SK9
+	.byte 	A_BUTTON
+
+	.byte 	BUTTON
+	.word  	CHEAT1
+	.byte 	SELECT
+
+	.byte 	LOAD,17		;SEE IF SECOND HALF OF CHEAT COMBO
+	.byte 	EQUAL
+	.word  	CHEAT2
+	.word  	1	
+
+	.byte 	SKIP
+	.word  	SK9
+
+CHEAT1:	.byte 	SETREG,1,0	;IF SELECT+START, SET STATE=1
+	.byte 	STORE,17
+	.byte 	SKIP
+	.word  	SK10
+
+CHEAT2:	.byte 	BUTTON		;IF B+START AND STATE=1 THEN CHEAT ENABLED
+	.word  	CHEATOK
+	.byte 	B_BUTTON
+	.byte 	SKIP
+	.word  	SK9
+	
+CHEATOK:
+;	.byte 	CHEAT,ON	;TAKE THIS OUT OF FINAL VERSION!!!!!!!!!
+	.byte 	SKIP
+	.word  	SK9
+
+
+;START WAS PRESSED.  CHEAT MODE IS SELECT+START FOLLOWED BY B+START.  THEN
+;START AND CHEAT IS ENABLED. 
+;
+;CONTINUE MODE IS A+START.
+
+SK20: 	.byte 	BUTTON
+	.word  	SK10
+	.byte 	UP|DOWN|LEFT|RIGHT ;DISALLOW OTHER BUTTONS
+
+ 	.byte 	BUTTON
+	.word  	GOTCHEAT
+	.byte 	SELECT|B_BUTTON		;CATCH CHEAT MODE COMBOS
+
+	.byte 	SOUND
+	.word  	0,0,0,0		;STOP THE MUSIC
+
+	.byte 	SETREG,20,0
+	.byte 	STORE,21	;SET HEALTH OF THE FIRST HERO ENTITY
+
+;SEE IF ITS CONTINUE.
+
+	.byte 	NOTBUTTON
+	.word  	SK22
+	.byte 	A_BUTTON	;ITS NOT CONTINUE UNLESS A
+	.byte 	LOAD,23		;IF CONTINUE, SEE IF WE CAN
+	.byte 	NOTEQUAL
+	.word  	SK23
+	.word  	$FF		;IT'LL BE -1 IF NOT.  IF GOOD, GO USE IT
+
+;NOT CONTINUE.  WE MUST RESET POSSESSIONS AND ENABLE ENTITIES.
+
+SK22:	.byte 	SETREG,0,0
+	.byte 	STORE,16	;ZERO MAGICS
+	.byte  	STORE,4		;ZERO TORCHES
+	.byte 	STORE,5		;ZERO BOOMERRANGS 
+	.byte 	STORE,6		;ZERO FOOD	
+	.byte 	STORE,7		;ZERO SUCTION CUPS	
+	.byte 	STORE,8		;ZERO KEYS
+	.byte 	STORE,9		;ZERO BRASS KNUCKLES 
+	.byte 	STORE,10	;ZERO SELECTOR	
+	.byte 	STORE,11	;ZERO MAP ICON
+	.byte 	STORE,12	;ZERO TORCH LIGHT DUMMY
+ 	.byte 	REBORN,ALL	;ENABLE ALL ENTITIES
+	.byte 	SETREG
+	.word  	1
+
+SK23:	.byte 	SKIP
+	.word  	XWIPEOUT
+
+;GO HERE TO REQUEST THE WORLD IN REGISTER AFTER A WIPE.  IT ASSUMES 24 HIGH.
+;ALL SPRITES ARE REMOVED BY THIS LOGIC BEFORE THE WIPE.  AFTER THE
+;WIPE, THE MUSIC IS STOPPED.
+
+XWIPEOUT:
+	.byte 	HIDEALL				;REMOVE ALL SPRITES
+	.byte 	GOTO,254,192			;HIDE THIS SPRITE
+ 	.byte 	WIPEOUT,REGISTER
+	.byte 	DELAY,20
+;********************* ENEMIES *************************
+;
+;ATTACK CONVENTIONS USED IN THIS GAME:
+;ORDINARY ATTACK = 0 (DAMAGE ENTITY)
+;CHARGING OR BUTTING ATTACK = 1 (THROW ENTITY BACK)
+;SPECIAL ATTACK = 2 (THROWS ENTITY BACK AND EARNS EXTRA POINTS).  HERO'S
+;    SIDE KICK AND ROLL ONLY.
+;SIDE KICK THROW BACK =3  THROWS ENEMY A BIT BUT NOT AS MUCH AS 1.
+;DYNAMITE ATTACK = 4 (THROWS RANDOMLY, ENABLES HURTING QUICKLY).
+
+;**** SPECIAL EFFECT MOVEMENTS *****
+
+SAFEDIE:			;GO HERE TO DIE WITHOUT MEMORY
+	.byte 	DIE,0		;GO AWAY IF SO
+
+
+
+;THIS TABLE CONTAINS THE POINTS TO AWARD FOR KILLING A GIVEN ENEMY.
+
+PNTTAB:
+	.byte 	5         	
+	.byte 	5         	
+	LASTPNTS = 1
+
+;THIS GENERAL ENEMY WALK SLOWLY APROACHES THE HERO AND THEN ATTACKS.  IT USES
+;THE ENEMIES BEHAVIOR BITS TO DECIDE WHAT THE PARAMETERS ARE.
+
+ENWALK:					;ENEMY WALKING MOVEMENT LIST
+	.byte 	FACE,TRAVELING|DOWN	;FACE DIRECTION OF TRAVEL
+	.byte 	ENABLE,ALL		;ENABLE OTHER INTERRUPTS
+ 	.byte 	STANDING
+	.word  	CHECKAGAIN
+	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL
+	.word  	VERIFYVALK		;DON'T CARE ABOUT SOLID IF VALKRY.
+	.word  	24
+
+VERIFYVALK:
+	.byte 	YVISUAL
+	.word  	CHECKAGAIN
+	.byte 	200    	  
+	.byte 	SKIP
+	.word  	ENDEAD		;VALKRY CAN'T FALL OFF BOTTOM!
+
+SLOWCHECK:			;JUMP BACK HERE TO SLOW DOWN OSCILLATIONS
+	.byte 	SETMOM,1,-1
+	.byte 	ACTIVATE,ESTAND	;IF WE ARE GOING TO DELAY, STAND.
+	.byte 	DELAY,20	
+	.byte 	ACTIVATE,EWALK
+
+;IF THE HERO IS ABOVE US WE NEED TO LOOK FOR A LEDGE OR A STAIR.
+
+CHECKAGAIN:
+	.byte 	RESETFRICTION,1,0
+	.byte 	RANDOM
+	.word  	RANSTUFF	;RANDOMLY, WE DO SOME ODD STUFF
+ 	.byte 	96
+
+NOT_THIS_TIME:
+	.byte 	INSTRUCTIONS,$84
+	.byte 	RESETFRICTION,1,0
+
+	.byte 	RANGE		;IF HE'S ABOVE US, SEE IF LEDGE CHECK.
+	.word  	EW6
+	.byte 	-1,7		;SKIP LEDGE CHECK IF HE'S WITHIN 7 OF US ON Y
+
+	.byte 	FETCHREG,YDIR	;GET DIRECTION TO TARGET
+	.byte 	EQUAL
+	.word  	EW5
+	.word  	0		;IF HE'S BELOW US, CHECK FOR PRECIPICE
+
+;YEP, HE'S ABOVE US.
+
+	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+
+	.byte 	STANDING
+	.word  	LEDGEHUNT	;BUT DON'T CHECK FOR LEDGE IF WE ARE FALLING
+	.byte 	ACTIVATE,EFALL
+
+;HERO'S BELOW. IF THE HERO IS BELOW US BY A LOT, CAN WE JUMP DOWN (OPTION1)?
+
+EW5:  	.byte 	IFNBEHAVIOR
+	.word  	EW6    		;SKIP IF CAN'T JUMP DOWN
+	.byte 	OPTION1
+
+	.byte 	LOAD,26
+	.byte 	DELAY,REGISTER	;WAIT BEFORE JUMPING
+
+	.byte 	RANGE		;IF HE'S ABOVE US, SEE IF LEDGE CHECK.
+	.word  	EW6
+	.byte 	-1,7		;SKIP LEDGE CHECK IF HE'S WITHIN 7 OF US ON Y
+
+	.byte 	FETCHREG,YDIR	;MAKE SURE HE'S STILL BELOW US
+	.byte 	EQUAL
+	.word  	EW6
+	.word  	1		
+
+	.byte 	IFNBEHAVIOR
+	.word  	DODOWN		;SKIP IF CAN'T SHOOT
+	.byte 	FAST		;FAST MEANS WE CAN SHOOT
+
+	.byte 	RANGE
+	.word  	DODOWN
+	.byte 	64,-1		;MUST BE FURTHER AWAY THAN 64 TO SHOOT
+
+	.byte 	RANDOM		;BUT WE WANT TO JUMP UP MOST TIMES
+	.word  	DODOWN
+	.byte 	128
+	.byte 	RANGE
+	.word  	CANSHOOT
+	.byte 	-1,48		;MUST BE WITHIN 48 ON Y LEVEL
+	
+DODOWN:	.byte 	SETREG,1,0
+	.byte 	STORE,STATE
+	.byte 	ACTIVATE,EJUMP	;SET STATE OF JUMP DOWN
+
+;CHECK FOR A PRECIPICE. 
+
+EW6:	.byte 	RESETFRICTION,1,0
+
+ 	.byte 	PRECIPICE
+	.word  	JUMPACROSS	;TRY TO JUMP WHEN ITS RIGHT NEAR US
+	.byte 	0	  
+
+	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+
+	.byte 	PRECIPICE
+	.word  	SLOWDOWN	;BUT WE NEED TO SLOW DOWN IF ONE NEAR BY
+	.byte 	8		;CHECK FOR A PRECIPICE 8 AHEAD
+
+	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+
+	.byte 	PRECIPICE
+	.word  	SLOWDOWN	
+	.byte 	16		;CHECK FOR A PRECIPICE 16 AHEAD
+
+;THE HERO IS NOT ABOVE US
+;DECIDE WHAT TO DO BASED ON HOW FAR AWAY THE HERO IS:
+;WE DO 1 OF 3 THINGS:
+;1. KEEP WALKING TOWARDS HIM.
+;2. POSE WAITING FOR AN ATTACK.
+;3. CHARGE HIM.
+;4. SHOOT
+;5. WAIT BECAUSE WE ARE VERY CLOSE ON THE AXIS BUT FAR AWAY ON THE Y.
+
+RANGEHIM:			
+	.byte 	RESETFRICTION,1,0
+	.byte 	RANGE
+	.word  	NEARHIM		;GO TO POSSIBLE POSE IF WITHIN 30
+	.byte 	30,-1		
+	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL 		;IF MONGO CHECK FOR BOOMERRANG
+	.word  	MONGDUCK
+	.word  	23
+	.byte 	SKIP
+	.word  	EN50	
+
+MONGDUCK:
+	.byte 	ACTIVE
+	.word  	MDUCK10
+	.byte 	ID
+	.word  	34
+	.byte 	ENABLE,HURTING
+	.byte 	ANIMATION,EWALK,2
+
+EN50:	.byte 	IFNBEHAVIOR		;IF NOT MAD OR DYING
+	.word  	TRYSHOOT		;WE CAN'T CHARGE
+	.byte 	MAD|DYING
+
+CHARGE:
+	.byte 	RANGE		;CHECK IF IN RANGE FOR CHARGE.
+	.word  	PICKMOM		;IF LOWER THAN CHARGE, GO PICK OUR SPEED
+	.byte 	48,16		
+	.byte 	RANGE
+	.word  	EOC
+	.byte 	64,16		;CHARGE BUTT IF BETWEEN 48 AND 64 PIXELS
+	.byte 	SKIP		
+	.word  	TRYSHOOT	;IF FURTHER THAN CHARGE, TRY SHOOTING
+EOC:  	.byte 	SETMOM,64,0	;START CHARGING AT HIM
+
+	.byte 	RANGE
+	.word  	CH10
+	.byte 	66,16		;IF WE GET FARGTHER THAN 66 AWAY, GIVE UP
+	.byte 	SKIP
+	.word  	TRYSHOOT
+		
+CH10:	.byte 	RANGE
+	.word  	CH20 		;DO THE ATTACK IF WITHIN 40
+	.byte 	40,-1
+     	.byte 	SKIP
+	.word  	EOC
+
+CH20:	.byte 	DISABLE,ATTACKING
+	.byte 	ACTIVATE,ECHARGE
+MDUCK10:
+	.byte 	DISABLE,HURTING	 	;BOOMERRANG IS THERE,DUCK
+	.byte 	ANIMATION,EDUCK,1
+	.byte 	SKIP
+	.word  	MONGDUCK
+;IN RANGE FOR ATTACK ON X AXIS.
+
+NEARHIM:
+	.byte 	RANGE
+	.word  	GETHIM		;DON'T START ATTACK UNLESS WITHIN 16 ON Y
+	.byte 	-1,16
+	.byte 	SKIP
+	.word  	SLOWCHECK	;JUST TRY AGAIN BUT SLOW DOWN THE HUNT.
+
+GETHIM:	.byte 	ACTIVATE,EPOSE
+
+
+
+;DO SOME RANDOM STUFF TO GIVE THE ENTITIES PERSONALITY.
+
+RANSTUFF:
+	.byte 	INSTRUCTIONS,9
+	.byte 	FETCHREG,ENTITY	
+	.byte 	EQUAL
+	.word  	RNS30		;IF VALKRY, JUMP
+	.word  	KNIFEJUMP
+	.byte 	EQUAL
+	.word  	RNS25
+	.word  	NINJAFAKE		;MASTER NINJA
+
+;RANDOM ACTIONS FROM HERE DOWN ARE HALF AS FREQUENT.
+
+	.byte 	RANDOM
+	.word  	NOT_THIS_TIME	;FOR REMAINDER, CUT ODDS IN FORTH
+	.byte 	64
+
+	.byte 	EQUAL
+	.word  	RNS10		;IF MONGOLIANS, DO ATTACKS JUST TO GET ROCKS
+	.word  	MONGOLIAN
+	.byte 	SKIP
+	.word  	CHECKAGAIN
+
+RNS10:	.byte 	ACTIVATE,EFAR
+
+RNS20:	.byte 	RANDOM
+	.word  	CHECKAGAIN
+	.byte 	128			;DON'T MAKE THE NINJA FLIP TOO MUCH
+RNS25:	.byte 	ACTIVATE,EDODGE
+
+RNS30: 	.byte 	SETREG,2,0	;MAKE THE VALKRY JUMP LIKE CRAZY
+	.byte 	STORE,STATE
+	.byte 	SETBEHAVIOR,MAD
+	.byte 	SETMOM,24,0
+	.byte 	ACTIVATE,EJUMP	;SET STATE OF JUMP ACROSS
+
+
+
+     	
+FALLROCK:			;BIG ROCKS THAT FALL WHEN MONGOLIAN ATTACKS.
+	.byte 	BOUNCE,100
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	SETMOM,0,96	;START WITH MAX DROP
+	.byte 	ENABLE,HURTING
+FR5:	.byte 	STANDING	;THEY JUST EXPLODE WHEN THEY HIT SOLID.
+	.word  	FR10
+	.byte 	INSTRUCTIONS,3	;CATCH SOLID ASAP
+	.byte 	REARM
+	.byte 	SKIP
+	.word  	FR5
+
+FR10: 	.byte 	NOISE
+	.word  	ROCKCRUSH
+ 	.byte 	LAUNCH,SMROCKGUYID,8,-16,0	;LAUNCH A SMALL ROCK
+	.byte 	LAUNCH,SMROCKGUYID,0,-8,0	;LAUNCH ANOTHER
+	.byte 	DIE,0
+
+
+FALLSMALL:			;THIS ROCK BOUNCES AND THEN FALLS OFF SCREEN
+	.byte 	FRICTION,0,0
+	.byte 	BOUNCE,200
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	MOMLIMIT,96,96
+	.byte 	FETCHREG,RANDOM
+	.byte 	ANDREG,%11110111,0
+	.byte 	XOR,8			;MAKE SURE AT LEAST A BIT OF X MOM
+	.byte 	REGMOM,REGISTER,-1
+	.byte 	SETMOM,-1,-96
+FSM10:	.byte 	STANDING
+	.word  	FSM20
+	.byte 	REARM
+	.byte 	SKIP
+	.word  	FSM10
+FSM20:	.byte 	DIE,0
+;THIS JUMP MODE ALLOWS AN ENTITY TO JUMP. IT DOESN'T ADD ANY X MOMENTUM 
+;BUT KEEPS WHATEVER YOU HAD AT THE TIME IT WAS ACTIVATED UNTIL IT IS DONE.  
+;IT ONLY LEAVES WHEN IT HAS FOUND SOLID.  IT DOESN'T CARE IF THE ENTITY IS 
+;ON SOLID TO START WITH.  IT DOESN'T MONKEY WITH INTERRUPTS SO IF ITS 
+;INTERRUPTED THAT INTERRUPT MUST DO A SOLIDSTATE SAFE.  WHEN DONE, THIS 
+;ROUTINE ACTIVATES WALKING MODE.  THIS ROUTINE MAKES DECISIONS BASED
+;ON BEHAVIOR BITS AND STATE AND YOU MUST SET THESE BEFORE CALLING:
+
+;IF STATE=0
+;IT JUMPS UP EITHER 6+ CHARS (HIJUMPER) OR 3+ CHARS (NOT HIJUMPER).
+;IT WILL JUMP UP THROUGH SOLID AND IT FINISHES WITH EFALL (EFALL WAITS
+;FOR CONTACT WITH SOLID).
+;
+;IF STATE=1:
+;IT JUMPS UP 8 PIXELS, TURNS OFF SOLID, DROPS 16 PIXELS, TURNS SOLID
+;STATE TO SAFE, CALLS EFALL (EFALL WAITS FOR CONTACT WITH SOLID).
+;IF CAN'T FALL, WALKS TOWARDS HERO ASSUMING THERE'S A STEP DOWN.
+;
+;IF STATE=2:
+;IT JUMPS UP 4+CHARS (FOR JUMPING ACROSS BRIDGES).
+;
+;IF STATE=3:
+;IT JUMPS UP AS WITH STATE=0 EXCEPT THAT IT APPLIES X MOMENTUM AT THE
+;TOP IN THE DIRECTION OF THE HERO. (STAIR)
+;
+;IF STATE=4 IT JUMPS UP 17+ CHARS USING SAME LOGIC AS STATE=0.  SET
+;HIJUMPER FOR THIS.  IF HIJUMPER OFF, WILL JUMP 14+.
+;
+ENJUMP:	.byte 	INSTRUCTIONS,5
+	.byte 	LOAD,STATE
+	.byte 	EQUAL
+	.word  	JUMPDOWN	;SKIP IF WE NEED TO JUMP DOWN.
+	.word  	1
+	.byte 	EQUAL
+	.word  	MIDJUMP
+	.word  	2
+	.byte 	EQUAL
+	.word  	SUPERJUMP
+	.word  	4
+	.byte 	LOAD,31
+	.byte 	INSTRUCTIONS,2
+	.byte 	SOLIDSTATE,REGISTER
+ENJ2:	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	IFNBEHAVIOR
+	.word  	ENJ4
+	.byte 	HIJUMPER
+ENJ3:	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+ENJ4: 	.byte 	LOAD,STATE
+	.byte 	EQUAL
+	.word  	A_STAIR
+	.word  	3
+	.byte 	ACTIVATE,EFALL
+
+A_STAIR:	
+	.byte 	ADDMOM,8,0
+	.byte 	DELAY,2
+	.byte 	ADDMOM,16,0
+	.byte 	DELAY,2
+	.byte 	ADDMOM,16,0
+	.byte 	ACTIVATE,EFALL	
+
+MIDJUMP:	
+	.byte 	LOAD,31
+	.byte 	INSTRUCTIONS,2
+	.byte 	SOLIDSTATE,REGISTER
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SKIP
+	.word  	ENJ3
+
+SUPERJUMP:
+	.byte 	LOAD,31
+	.byte 	INSTRUCTIONS,2
+	.byte 	SOLIDSTATE,REGISTER
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SETMOM,-1,-78	;UPWARDS WITH MAX SPEED AT START
+	.byte 	SKIP
+	.word  	ENJ2
+
+;WE WANT TO JUMP DOWN THROUGH SOLIDS BUT MAYBE WE ARE ACTUALLY ON A SUPER
+;SOLID STAIR AND CAN'T JUMP DOWN.  WE GOT HERE BECAUSE THE HERO WAS
+;BELOW US BUT WE NEED TO CHECK WHAT HAPPENED AFTER WE TRIED TO JUMP DOWN.
+;IF WE DIDN'T GET ANYWHERE, WE ARE ON SUPER SOLIDS AND NEED TO WALK DOWN
+;STEPS.
+
+JUMPDOWN:
+	.byte 	LOAD,31
+	.byte 	INSTRUCTIONS,1
+	.byte 	SOLIDSTATE,REGISTER
+	.byte 	STANDING	;IF STILL STANDING AFTER GOING UNSOLID, STAIR
+	.word  	JDN10
+	.byte 	SETMOM,-1,-32	;UPWARDS WITH MAX SPEED AT START
+	.byte 	DELAY,4		;LET HIM FALL THROUGH
+	.byte 	ACTIVATE,EFALL	;IF NOT, IT WAS A LEDGE AND WE DID IT
+
+;THE HERO IS BELOW US BUT WE AREN'T ON A JUMP DOWN THROUGH TYPE OF LEDGE.
+;WE MUST BE ON A STAIR.  TRY TO WALK TOWARDS THE HERO ASSUMING WE WILL
+;GO DOWN.
+
+JDN10:	.byte 	ANIMATION,EWALK,1	;USE THE WALKING ANIMATION
+       	.byte 	SETMOM,24,-1
+
+JDN11:	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+
+	.byte 	INSTRUCTIONS,4
+	.byte 	FETCHREG,YDIR	;MAKE SURE HE'S STILL BELOW US
+	.byte 	EQUAL
+	.word  	JDN50 		;IF NOT BELOW, GO BACK TO WALK.
+	.word  	1		
+
+	.byte 	RANGE
+	.word  	JDN50
+	.byte 	-1,7		;IF HE'S BELOW US BY LESS THAN 7, DON'T TRY 
+
+	.byte 	DISTANCE
+	.word  	SLOWCHECK	;SLOW HIM IF WE ARE ON THE EDGE AND HES BELOW
+	.byte 	2,-1		;IF WE GET REAL CLOSE ON X, WE COULD OSCILLATE
+
+	.byte 	SPEED
+	.word  	JDN50		;END IF RUN INTO OBSTICLE
+	.byte 	7,-1
+
+	.byte 	RESETFRICTION,1,0	;CANCEL FRICTION
+	.byte 	STANDING
+	.word  	JDN11
+	.byte 	ACTIVATE,EFALL	;WHEN WE FINALLY DROP, USE FALL.
+
+JDN50:	.byte 	ACTIVATE,EWALK
+
+ENDUCK:	.byte 	SKIP
+	.word  	ENDUCK
+
+
+;***** PROJECTILE MOVEMENTS ******
+
+BOMBWAKE:
+   	.byte 	INSTRUCTIONS,$8A
+	.byte 	BOUNCE,128
+	.byte 	MOMLIMIT,64,64
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	FETCHREG,PARAM2	 	;CHECK FOR DIRECTION OF QUIKKO BOMBS
+	.byte 	EQUAL
+	.word  	BOM4
+	.word  	1	
+	.byte 	FETCHREG,PARAM2	 	;CHECK FOR REGLAUNCH BOMBS
+	.byte 	EQUAL
+	.word  	BOM20
+	.word  	2	
+	.byte 	SETMOM,32,-64
+	.byte 	FETCHREG,FACE
+	.byte 	ANDREG,$80,0
+	.byte 	EQUAL
+	.word  	BOM5
+	.word  	0
+BOM4:	.byte 	SETMOM,-40,-64		;THROW LEFT IF FACING LEFT
+BOM5:  	.byte 	SOLIDSTATE,OFF
+	.byte 	UNLINK
+	.byte 	RANDOM
+	.word  	BOM6
+	.byte 	128
+	.byte 	MOVEIN,16,-8
+BOM6:	.byte 	RANDOM
+	.word  	BOM8
+	.byte 	128
+	.byte 	MOVEIN,8,-8
+BOM8: 	.byte 	SOLIDSTATE,SAFE
+ 	.byte 	DELAY,30
+	.byte 	NOISE
+	.word  	BOMBSOUND	;MAKE THE BOMB SOUND
+	.byte 	SEQUENCE
+	.word  	BLAST
+	.byte 	PALCLR,0,$37	;SET BACKGROUND TO YELLOW
+BOM7:	.byte 	DELAY,2
+	.byte 	PALCLR,0,$35	;SET BACKGROUND TO PINK
+	.byte 	DELAY,2
+	.byte 	ACTIVE
+	.word  	BOM10
+	.byte 	ID   
+	.word  	FIREDUMMY	
+	.byte 	BPALETTE
+	.word  	-1
+BOM9:	.byte 	DIE,0
+BOM10:	.byte 	HURT,0,ID
+	.word  	FIREDUMMY
+	.byte 	SKIP
+	.word  	BOM9
+BOM20:	.byte 	SOLIDSTATE,OFF		;IF REGLAUNCHED THEN FALL TO GROUND
+	.byte 	DELAY,15
+	.byte 	SKIP
+	.word  	BOM8	
+BLAST:	.word  	BOMBEXPL		;TO SHOW AN EXPLOSION
+	.word  	-1
+	.byte 	0,0
+	.byte 	$20,$12
+	.byte 	$88,$0F
+
+SHURIWAKE:
+	.byte 	INSTRUCTIONS,$8A
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	BOUNCE,255
+	.byte 	MOMLIMIT,64,64
+	.byte 	MOVEIN,56,-1
+	.byte 	GRAVITY,0
+	.byte 	SETMOM,-1,0
+ 	.byte 	FETCHREG,ENTITY
+	.byte 	EQUAL			;CHECK IF SHOTGUN
+	.word  	BW6
+	.word  	BOLTGUYID
+	.byte 	EQUAL		   	;CHECK IF ARROW
+	.word  	BW6
+	.word  	37
+ 	.byte 	YTRACK,TOWARDS
+	.byte 	RANGE
+	.word  	BW6
+	.byte 	-1,16
+	.byte 	ADDMOM,0,16
+	.byte 	RANGE
+	.word  	BW6
+	.byte 	-1,64
+	.byte 	ADDMOM,0,16
+BW6:	.byte 	UNLINK
+	.byte 	FRICTION,0,0
+
+BW10: 
+	.byte 	REARM
+	.byte 	XVISUAL
+	.word  	SAFEDIE
+	.byte 	12		;DIE IF HIT LEFT
+	.byte 	ATTACKED
+	.word  	SAFEDIE		;OR IF WE HIT SOMEONE
+	.byte 	XVISUAL
+	.word  	BW10
+	.byte 	244		;OR IF HIT RIGHT
+	.byte 	SKIP
+	.word  	SAFEDIE
+MACHINEWAKE:			;MACHINE GUN BULLET
+	.byte 	INSTRUCTIONS,$86
+	.byte 	SOLIDSTATE,OFF
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	NOISE
+	.word  	MACHGUN
+	.byte 	MOMLIMIT,120,-1
+	.byte 	MOVEIN,120,-1
+	.byte 	GRAVITY,0
+	.byte 	SKIP
+	.word  	BW6
+
+MONGATTACK:			;THE MONGOLIAN'S ATTACK MUST SHAKE THE
+				;SCREEN AND LAUNCH ROCKS
+	.byte 	RESETBEHAVIOR,MAD
+
+MNG12:	.byte 	FRAME
+	.word  	MNG15
+      	.byte 	1		;WAIT FOR CLUB TO HIT
+	.byte 	SKIP
+	.word  	MNG12
+
+MNG15:	.byte 	ENABLE,ALL^ATTACKING	;ENABLE ALL BUT ATTACKING.
+	.byte 	NOISE
+	.word  	THUD
+	.byte 	SHAKE,-1
+	.byte 	DELAY,1		
+
+	.byte 	RANDOM
+	.word  	MNG16
+	.byte 	192
+	.byte 	CREATE,ROCKGUYID,128,0,0 ;LAUNCH A ROCK IN THE SCREEN MIDDLE
+
+MNG16: 	.byte 	SHAKE,1
+	.byte 	DELAY,1
+
+	.byte 	RANDOM
+	.word  	MNG17
+	.byte 	192
+	.byte 	CREATE,ROCKGUYID,32,0,0	;LAUNCH A ROCK IN THE SCREEN MIDDLE
+
+MNG17: 	.byte 	SHAKE,-1
+	.byte 	DELAY,1
+
+	.byte 	RANDOM
+	.word  	MNG20
+	.byte 	192
+	.byte 	CREATE,ROCKGUYID,192,0,0	;LAUNCH A ROCK IN THE SCREEN MIDDLE
+
+
+MNG20:	.byte 	SHAKE,1
+	.byte 	DELAY,1		
+
+ 	.byte 	RANDOM
+	.word  	MNG22
+	.byte 	192
+	.byte 	CREATE,ROCKGUYID,0,0,0	;LAUNCH A ROCK IN THE SCREEN MIDDLE
+
+
+MNG22:
+	.byte 	RANDOM
+	.word  	MNG40
+	.byte 	192
+	.byte 	CREATE,ROCKGUYID,96,0,0	;LAUNCH A ROCK IN THE SCREEN MIDDLE
+
+MNG40:	.byte 	SHAKE,0
+	.byte 	FINISH			
+	.byte 	IFNBEHAVIOR
+	.word  	MNG50
+	.byte 	WEAK	
+	.byte 	DELAY,10		;FOR ORDINARY MONGOLIAN DELAY
+MNG45:	.byte 	ACTIVE		;IF BOOMERRANG IS THERE,THEN DUCK
+	.word  	MDUCK20
+	.byte 	ID
+	.word  	34
+	.byte 	ENABLE,HURTING
+MNG50:	.byte 	ACTIVATE,EWALK
+MDUCK20:
+	.byte 	DISABLE,HURTING	 	;BOOMERRANG IS THERE,DUCK
+	.byte 	ANIMATION,EDUCK,1
+	.byte 	SKIP
+	.word  	MNG45
+
+;THE EVIL FAIRY FLIES TOWARDS THE HERO AND THEN POKES HIM.
+
+FAIRYWAKE:
+	.byte 	GRAVITY,0
+	.byte 	SOLIDSTATE,OFF
+	.byte 	IDENTIFY
+	.word  	ENEMY
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS	
+	.byte 	YTRACK,TOWARDS
+	.byte 	MOMLIMIT,24,24
+	.byte 	ENABLE,HURTING
+FW10:  	.byte 	ADDMOM,8,8
+	.byte 	REARM
+FW15:	.byte 	ATTACKED
+	.word  	FW20
+	.byte 	SKIP
+	.word  	FW10
+FW20: 	.byte 	DELAY,12	;IF WE POKED HIM, WAIT A BIT
+	.byte 	SKIP
+	.word  	FW10
+DUMB:
+	.word  	DUMMY
+	.word  	-1
+	.byte 	0,0
+	.byte 	0,0
+	.byte 	0,0
+BRIZZY:
+	.word  	BRIZBLOW
+	.word  	BRIZWAKE
+	.byte 	$23,0
+	.byte 	0,$03
+	.byte 	0,0
+	.word  	DAGSPIN	  		;SPECIAL DAGGER ENTITY
+	.word  	-1
+	.byte 	0,0
+	.byte 	$30,$12	
+	.byte 	$11,$0F
+BRIZBIG:
+	.word  	BRIZTHNG
+	.word  	BRIZSHOT
+	.byte 	$23,-2
+	.byte 	0,$05
+	.byte 	0,0
+
+BRIZSHOT:  
+BRI5:	.byte 	SOLIDSTATE,OFF	      	;BIG BRIZ AT FIRST
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	SETMOM,-1,80
+BRI6:  	.byte 	REARM
+	.byte 	RANDOM
+	.word  	BRI7
+	.byte 	20
+	.byte 	YVISUAL
+	.word  	BRI6
+	.byte 	140
+BRI7:	.byte 	NOISE
+	.word  	BOMBSOUND  
+	.byte 	LAUNCH,49,8,-16,0
+	.byte 	LAUNCH,49,0,-8,0
+	.byte 	LAUNCH,49,4,-12,0
+	.byte 	SEQUENCE
+	.word  	DUMB
+BRI8:	.byte 	DIE,0
+
+BRIZWAKE:
+	.byte 	SOLIDSTATE,OFF
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	MOMLIMIT,96,96
+	.byte 	IFPARAM
+	.word  	BR5
+	.byte 	0
+	.byte 	ANIMATION,EHURT,2
+BR5:	.byte 	FETCHREG,RANDOM
+	.byte 	ANDREG,%11110111,0
+	.byte 	XOR,8			;MAKE SURE AT LEAST A BIT OF X MOM
+	.byte 	REGMOM,REGISTER,-1
+	.byte 	SETMOM,-1,-104
+BRI10:
+	.byte 	REARM
+ 	.byte 	IFXEDGE
+	.word  	BRI20
+	.byte 	10
+	.byte 	YVISUAL
+	.word  	BRI10
+	.byte 	196
+BRI20:	.byte 	DIE,0
+
+HOLDY:
+	.word  	HOLDON
+	.word  	HOLDCODE
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+
+HOLDCODE:
+	.byte 	GRAVITY,0
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS,YTRACK,TOWARDS
+	.byte 	MOMLIMIT,24,24
+	.byte 	SOLIDSTATE,OFF
+HLD10:	.byte 	ACTIVE			;SEE IF NINJA THERE,IF NOT DIE
+	.word  	HLD15
+	.byte 	ID   
+	.word  	28 
+	.byte 	DIE,1	 
+HLD15:	.byte 	ADDMOM,4,4
+	.byte 	DISTANCE
+	.word  	HLD20
+	.byte 	8,8
+	.byte 	SKIP
+	.word  	HLD10
+HLD20:
+	.byte 	LINK,0,0
+	.byte 	ID
+	.word  	HEROID
+	.byte 	SETCOUNTER,100
+HLD25:	.byte 	COUNT
+	.word  	HLD30
+	.byte 	1
+	.byte 	SKIP
+	.word  	HLD25	
+HLD30: 	.byte 	SETMOM,24,-24
+	.byte 	UNLINK
+	.byte 	DELAY,40
+	.byte 	SKIP
+	.word  	HLD10			
+
+BALLDOOD:
+	.word  	BALL1
+	.word  	BALLCODE
+	.byte 	0,0
+	.byte 	$40,$01
+	.byte 	$11,$0F
+	.word  	-1
+	.word  	BALLHURT
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+BALLCODE:
+	.byte 	FRICTION,0,0
+	.byte 	BOUNCE,255
+	.byte 	MOMLIMIT,120,96
+	.byte 	IDENTIFY
+	.word  	ENEMY
+	.byte 	ENABLE,HURTING
+	.byte 	TARGET
+	.word  	HERO0	
+ 	.byte 	SETMOM,56,-1
+BLC5:	.byte 	SETMOM,-1,-96
+BLC10: 	.byte 	REARM
+	.byte 	ATTACKED
+	.word  	BLC30	
+BLC14:	.byte 	INSTRUCTIONS,3
+	.byte 	IFXEDGE
+	.word  	BLC15
+	.byte 	10		
+	.byte 	STANDING
+	.word  	BLC5
+	.byte 	SKIP
+	.word  	BLC10
+BLC15: 	.byte 	YVISUAL
+	.word  	BLC17	
+	.byte 	150
+BLC16:	.byte 	IFXEDGE
+	.word  	SAFEDIE
+	.byte 	10
+	.byte 	SKIP
+	.word  	BLC16	
+
+BLC17:	.byte 	INSTRUCTIONS,$82
+	.byte 	SETMOM,0,-1
+	.byte 	MOVEIN,-56,-1 
+	.byte 	DELAY,4
+	.byte 	SKIP
+	.word  	BLC10	
+
+BALLHURT:
+	.byte 	MOVEIN,-112,-1
+	.byte 	DAMAGE
+	.byte 	ASSESS
+	.word  	BLC20
+	.byte 	0
+	.byte 	RESUME
+BLC20:
+	.byte 	SEQUENCE
+	.word  	BOMBLAST   
+	.byte 	DELAY,2	
+ 	.byte 	LAUNCH,5,4,0,0 		;LAUNCH SINGLE STICK OF DYNAMITE
+	.byte 	LOWNOISE
+	.word  	DIEPRIZE
+	.byte 	DIE,0
+
+BLC30:	.byte 	SEQUENCE
+	.word  	BOMBLAST
+	.byte 	DELAY,3
+	.byte 	DIE,0
+QUIK:
+	.word  	FLIT
+	.word  	QUIKKO
+	.byte 	0,0
+	.byte 	$40,$02
+	.byte 	$11,$0F
+	
+QUIKKO:
+	.byte 	GRAVITY,0
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS
+	.byte 	MOMLIMIT,40,0
+QWK10:	.byte 	INSTRUCTIONS,5
+ 	.byte 	ADDMOM,4,0
+	.byte 	RANDOM			;SOMETIMES SHOOT
+	.word  	QWK20
+	.byte 	18
+	.byte 	SKIP
+	.word  	QWK10
+QWK20: 	.byte 	LAUNCH,53,8,8,0
+	.byte 	SKIP
+	.word  	QWK10   
+
+	
+QUIKSHOT:
+	.word  	QUIKBALL
+	.word  	QUIKCODE
+	.byte 	0,0
+	.byte 	$20,$02
+	.byte 	$11,$0F
+
+QUIKCODE:
+	.byte 	GRAVITY,-1
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	RANDOM			
+	.word  	QKC10
+	.byte 	40
+QKC5: 	.byte 	YVISUAL
+	.word  	QKC6
+	.byte 	200
+	.byte 	SKIP
+	.word  	QKC20 
+QKC6: 	.byte 	STANDING
+	.word  	QKC20
+	.byte 	SKIP
+	.word  	QKC5
+QKC10: 	.byte 	RANDOM
+	.word  	QKC15
+	.byte 	127
+	.byte 	SPAWN,BOMBGUYID,0,0,0		;SOMETIMES SHOOT RIGHT
+	.byte 	RESUME
+QKC15:	.byte 	SPAWN,BOMBGUYID,0,0,1  	;SOMETIMES SHOOT LEFT
+	.byte 	RESUME
+
+QKC20:	.byte 	DIE,0
+
+
+GRABBY:
+	.word  	GRAB1			
+	.word  	GRABCODE
+	.byte 	0,0
+	.byte 	$20,$00
+	.byte 	$11,$0F
+	.word  	GRABLOW			
+	.word  	GRBHURT
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+GRABEXPLODE:
+	.word  	GRABLOW
+	.word  	-1
+	.byte 	0,0
+	.byte 	0,0
+	.byte 	0,0
+GRABCODE:
+	.byte 	GRAVITY,0
+	.byte 	BOUNCE,255
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	IDENTIFY
+	.word  	ENEMY
+	.byte 	ENABLE,HURTING
+	.byte 	XTRACK,TOWARDS,YTRACK,TOWARDS
+	.byte 	MOMLIMIT,32,32
+GRB10: 
+	.byte 	REARM
+	.byte 	ADDMOM,4,4
+	.byte 	ATTACKED
+	.word  	GRB20  
+	.byte 	SKIP
+	.word  	GRB10
+GRB20:	.byte 	HURT,0,ID
+	.word  	HEROID
+	.byte 	SETMOM,-1,32  		;DELAY AND BLOW UP
+	.byte 	DELAY,20
+	.byte 	NOISE
+	.word  	BOMBSOUND			
+	.byte 	DIE,1
+
+GRBHURT:.byte 	ATTACKER     		;ATTACKED BY BOOMERRANG?
+	.word  	GRB30
+	.byte 	34
+	.byte 	DIE,1
+GRB30:	.byte 	LAUNCH,14,0,0,0	   	;LAUNCH FOOD 
+	.byte 	LOWNOISE
+	.word  	DIEPRIZE
+	.byte 	DIE,1
+
+
+STARMOVE:
+	.word  	STAR
+	.word  	STARWAKE	
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+
+STARWAKE:
+	.byte 	GRAVITY,0
+	.byte 	SOLIDSTATE,OFF
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	XTRACK,TOWARDS,YTRACK,TOWARDS
+	.byte 	SETCOUNTER,30
+STAR10:	.byte 	ADDMOM,24,0
+	.byte 	IFXEDGE
+	.word  	STAR30
+	.byte 	35
+	.byte 	COUNT
+	.word  	STAR20
+	.byte 	1
+	.byte 	SKIP
+	.word  	STAR10
+STAR20:	.byte 	SETCOUNTER,4
+STAR25:	.byte 	LAUNCH,49,8,8,1		;LAUNCH THE EVIL DAGGERS		
+	.byte 	COUNT
+	.word  	STAR30
+	.byte 	1
+	.byte 	SKIP
+	.word  	STAR25	
+STAR30:	.byte 	ACTIVATE,EWAKE	
+
+BOSSMECH:
+	.word  	BOSROB
+	.word  	MECHMOVE
+	.byte 	$23,-1
+	.byte 	0,0
+	.byte 	0,0
+MECHMOVE:
+	.byte 	ACTIVE	 ;IF PEAS THERE THEN DON'T LAUNCH ANOTHER ROBOT
+	.word  	SAFEDIE	
+	.byte 	ID
+	.word  	58
+	.byte 	GRAVITY,0
+	.byte 	TARGET
+	.word  	HERO0
+	.byte 	MOMLIMIT,96,-1
+	.byte 	INSTRUCTIONS,$83
+	.byte 	SETMOM,96,0
+	.byte 	XVISUAL
+	.word  	MECH5
+	.byte 	128
+	.byte 	SETMOM,-96,0
+MECH5: 	.byte   	IFXEDGE
+	.word  	SAFEDIE
+	.byte 	14
+	.byte 	RANDOM			
+	.word  	MECH5
+	.byte 	128
+	.byte 	RANDOM
+	.word  	MECH5
+	.byte 	64
+	.byte 	LAUNCH,58,9,9,0		;DROP KILLER THINGS
+	.byte 	DELAY,2
+	.byte 	SKIP
+	.word  	MECH5					
+	
+
+DROPEX:
+	.word  	DROPEXS
+	.word  	-1
+	.byte 	0,-1
+	.byte 	0,0
+	.byte 	0,0
+
+BOSSDROP:
+	.word  	BOSDROP
+	.word  	DROPCODE
+	.byte 	$23,0
+	.byte 	$20,$02
+	.byte 	$11,$0F
+
+DROPCODE:
+	.byte 	GRAVITY,4
+	.byte 	TARGET
+	.word  	HERO0
+DROP5:	.byte 	STANDING
+	.word  	DROP10
+	.byte 	ATTACKED
+	.word  	DROP10
+	.byte 	YVISUAL
+	.word  	DROP6
+	.byte 	192
+	.byte 	DIE,0
+DROP6:	.byte 	REARM
+	.byte 	SKIP
+	.word  	DROP5
+DROP10:	.byte 	SEQUENCE
+	.word  	DROPEX
+	.byte 	DELAY,2
+	.byte 	DIE,0	
