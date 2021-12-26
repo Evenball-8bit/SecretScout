@@ -6,6 +6,7 @@
 ;#resource "KUNGTAB.ASM"
 ;#resource "DRAWDATA.ASM"
 ;#resource "Scout.cfg"
+;#resource "ScoutDEF.h"
 ;#define CFGFILE Scout.cfg
 ;#define LIBARGS ,
 
