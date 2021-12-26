@@ -294,7 +294,7 @@ ENTITYTAB:			;ENTITY SPRITE ASSIGNMENT TABLE
 	.byte 	$0A,$E0,0,0
 	.word  	LOTSMAGIC	;9=10 DYNAMITES    
 	.byte 	0,$E0,$20,0
-	.word  	SHIELD		;10=HERO'S SHIELD 	   
+	.word  	SHIELD	;10=HERO'S SHIELD 	   
 	.byte 	$40,$E0,0,0
 	.word  	BOOMERPRIZE	;11=BOOMERRANG	   
 	.byte 	0,$E0,$20,0
@@ -370,9 +370,9 @@ ENTITYTAB:			;ENTITY SPRITE ASSIGNMENT TABLE
 	.word  	BIGARROW 	;37	ARROW IN WINDOW ROOM
 	.byte 	$68,0,0,1
 	;WINDOWMAN = 38		;MAN IN WINDOW ROOM
-	.word     MANARROW
+	.word   MANARROW
 	.byte 	$2E,$E0,0,5 
-	.word   	GATEKEY		;39=GATE THAT NEEDS KEY TO OPEN  
+	.word   GATEKEY		;39=GATE THAT NEEDS KEY TO OPEN  
 	.byte 	0,0,0,5
 	.word  	BIRDFAKE 	;40=FAKE BIRD MAN WITH KNIFE
 	.byte 	$2E,$E0,0,7
@@ -3198,7 +3198,7 @@ USE_BCHRS:
 		.byte 	12		;89
 
 ;THIS TABLE HAS THE BACKGROUND PALETTE TO USE FOR A GIVEN WORLD #.
-
+;$2E3B in the ROM
 USE_BPAL:			;NAME OF BAKGROUND PALETTE TO USE
 
 ;			LEVEL 0
@@ -3532,7 +3532,7 @@ USE_TABLE:			;THE TABLE TO USE FOR EACH WORLD NUMBER.
 
 
 BOOTTAB:		;32 WIDE
-
+;$305D in rom
 	.word  	0,0,0,0			
 	.word  	2
       	.byte 	$F0,0,$0C,$00,-1,-1		;LAUNCH COPYRIGHT, KEY MONITOR
@@ -4310,8 +4310,8 @@ P2TAB_1:
 	.byte 	9,22,CLIMB,0,0,0	
 	.word  	55
         .byte 	$F0,12,20,0,-1,25		;LAUNCH TORCH
-	.word  	95
-        .byte 	$F0,16,14,0,-1,219		;LAUNCH KEY
+	;.word  	95	;These two are not compiled in the ACTUAL retail ROM - Evenball
+        ;.byte 	$F0,16,14,0,-1,219		;LAUNCH KEY
 	.word  	99
         .byte 	$F0,16,14,0,-1,12		;LAUNCH KEY
 	.word  	-1,0				;END OF THIS COLUMN TABLE

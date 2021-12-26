@@ -74,7 +74,7 @@
 ; STATE RAM IS USED TO SAVE AND RESTORE THE HERO'S REGISTER
 
 HEROINFO:
-	.word    	HERO3		;WAKEUP
+	.word   HERO3		;WAKEUP
 	.word  	HWAKEUP
 	.byte 	$40,-1
 	.byte 	0,0
@@ -4144,10 +4144,11 @@ ST20:	.byte 	LOAD,STATE
 	.byte 	SPAWN,REGISTER,25,8,-4		;SHOOT THE SPELL
 	.byte 	FINISH
 	.byte 	DELAY,8
-	.byte 	FETCHREG,ENTITY
-	.byte 	EQUAL	  	;IF DOCTOR DEMISE, DON'T LAUNCH ROBOT
-	.word  	ST25
-	.word  	19	
+        ;Commenting these out to match retail ROM - Evenball
+	;.byte 	FETCHREG,ENTITY
+	;.byte 	EQUAL	  	;IF DOCTOR DEMISE, DON'T LAUNCH ROBOT
+	;.word  	ST25
+	;.word  	19	
 	.byte 	RANDOM	  	;RANDOMLY LAUNCH ROBOT
 	.word  	ST25
 	.byte     	128
@@ -4391,9 +4392,10 @@ WWAKEUP:				;WORLD WAKEUP LIST
 	.byte 	GRAVITY,0
 	.byte 	FETCHREG,WORLD
 	.byte 	STORE,23		;SET CONTINUE MODE WORLD.
-;	.byte 	IFNCHEAT
-;	.word  	WWK10
-; 	.byte 	REBORN,ALL	;ENABLE ALL ENTITIES IF CHEATER MODE
+        ;Uncommented these to match retail ROM - Evenball
+	.byte 	IFNCHEAT
+	.word  	WWK10
+ 	.byte 	REBORN,ALL	;ENABLE ALL ENTITIES IF CHEATER MODE
 	
 WWK10:	.byte 	SHAKE,0
 	.byte 	SETREG,OFF,0
@@ -4792,8 +4794,8 @@ CHEAT2:	.byte 	BUTTON		;IF B+START AND STATE=1 THEN CHEAT ENABLED
 	.byte 	SKIP
 	.word  	SK9
 	
-CHEATOK:
-;	.byte 	CHEAT,ON	;TAKE THIS OUT OF FINAL VERSION!!!!!!!!!
+CHEATOK:;I uncommented line 4798 to match retail ROM - Evenball
+	.byte 	CHEAT,ON	;TAKE THIS OUT OF FINAL VERSION!!!!!!!!!
 	.byte 	SKIP
 	.word  	SK9
 

@@ -7,6 +7,7 @@
 ;#resource "DRAWDATA.ASM"
 ;#resource "Scout.cfg"
 ;#resource "ScoutDEF.h"
+;#resource "JunkData.bin"
 ;#define CFGFILE Scout.cfg
 ;#define LIBARGS ,
 
